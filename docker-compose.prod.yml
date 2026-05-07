@@ -1,0 +1,208 @@
+version: "3.8"
+
+# ── Production — ${APP_DOMAIN} ────────────────────────────────────────────────
+# Requires: .env.prod with all variables from .env.example
+#
+# Deploy:
+#   make deploy
+#   # or manually:
+#   bash -c "set -a && . .env.prod && set +a && docker stack deploy -c docker-compose.prod.yml nexus-prod"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - nexus_postgres_data:/var/lib/postgresql/data
+    networks:
+      - traefik_public
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      # 8 GB — heavy analytical queries benefit from extra RAM for page cache + aggregation buffers
+      CLICKHOUSE_MAX_SERVER_MEMORY_USAGE: "8589934592"
+      CLICKHOUSE_DEFAULT_MAX_MEMORY_USAGE: "1073741824"
+    volumes:
+      - nexus_clickhouse_data:/var/lib/clickhouse
+    networks:
+      - traefik_public
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --save "" --appendonly no
+    volumes:
+      - nexus_redis_data:/data
+    networks:
+      - traefik_public
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 600M
+        reservations:
+          memory: 64M
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    volumes:
+      - nexus_rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - traefik_public
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.nexus-mq.rule=Host(`${MQ_DOMAIN}`)"
+        - "traefik.http.routers.nexus-mq.entrypoints=websecure"
+        - "traefik.http.routers.nexus-mq.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.nexus-mq-svc.loadbalancer.server.port=15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    image: ghcr.io/${GITHUB_OWNER}/nexus-server:${IMAGE_VERSION}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      CLICKHOUSE_HOST: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+      PORT: 3000
+      API_URL: https://${APP_DOMAIN}
+      FRONTEND_URL: https://${APP_DOMAIN}
+      JWT_SECRET: ${JWT_SECRET}
+      INITIAL_ADMIN_EMAIL: ${ADMIN_EMAIL}
+      INITIAL_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672
+      WORKER_URL: ${WORKER_URL}
+      CF_ACCOUNT_ID: ${CF_ACCOUNT_ID}
+      CF_KV_NAMESPACE_ID: ${CF_KV_NAMESPACE_ID}
+      CF_API_TOKEN: ${CF_API_TOKEN}
+      GOOGLE_ADS_CLIENT_ID: ${GOOGLE_ADS_CLIENT_ID}
+      GOOGLE_ADS_CLIENT_SECRET: ${GOOGLE_ADS_CLIENT_SECRET}
+      GOOGLE_ADS_DEVELOPER_TOKEN: ${GOOGLE_ADS_DEVELOPER_TOKEN}
+      # 80% of the 2 GB container limit
+      NODE_OPTIONS: "--max-old-space-size=1638"
+    networks:
+      - traefik_public
+    depends_on:
+      - clickhouse
+      - postgres
+      - redis
+      - rabbitmq
+    deploy:
+      mode: replicated
+      # 3 replicas = 3 Node.js event loops across 4 vCPUs (1 free for ClickHouse/Postgres)
+      replicas: 3
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 15s
+        order: start-first
+        failure_action: rollback
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.nexus-api.priority=200"
+        - "traefik.http.routers.nexus-api.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/tracking`) || PathPrefix(`/webhooks`))"
+        - "traefik.http.routers.nexus-api.entrypoints=websecure"
+        - "traefik.http.routers.nexus-api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.nexus-api-svc.loadbalancer.server.port=3000"
+
+  frontend:
+    image: ghcr.io/${GITHUB_OWNER}/nexus-client:${IMAGE_VERSION}
+    networks:
+      - traefik_public
+    depends_on:
+      - backend
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.nexus-web.priority=100"
+        - "traefik.http.routers.nexus-web.rule=Host(`${APP_DOMAIN}`)"
+        - "traefik.http.routers.nexus-web.entrypoints=websecure"
+        - "traefik.http.routers.nexus-web.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.nexus-web-svc.loadbalancer.server.port=80"
+
+networks:
+  traefik_public:
+    external: true
+    name: traefik_public
+
+volumes:
+  nexus_clickhouse_data:
+  nexus_postgres_data:
+  nexus_redis_data:
+  nexus_rabbitmq_data:

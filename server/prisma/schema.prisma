@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// checkoutType defines the checkout platform used by this project.
+// Drives which scripts and webhook instructions are shown during onboarding.
+//
+// Values:
+//   shopify         — Shopify native checkout (default)
+//   cartpanda       — CartPanda checkout (standalone or on top of Shopify)
+//   shopify_yampi   — Shopify storefront + Yampi checkout
+//   woocommerce     — WooCommerce (future)
+//
+// Note: platform-specific columns (pixelFacebookId, tokenFacebookApi, etc.) are kept
+// for backward compatibility while the integrations refactor is in progress.
+// They will be migrated to the `integrations` table in a future migration.
+model projects {
+  id                  String         @id
+  name                String
+  pixelId             String         @unique
+  domain              String?
+  userId              String
+  checkoutType        String         @default("shopify")
+  projectType         String         @default("ecommerce")
+  isActive            Boolean        @default(true)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  deletedAt           DateTime?      @map("deleted_at")
+
+  // Cloudflare Worker — shared multi-tenant worker (config synced to KV on save)
+  ingestApiKey        String         @default(uuid()) @map("ingest_api_key")
+  workerMode          Boolean        @default(false)  @map("worker_mode")
+  workerUrl           String?                         @map("worker_url")
+  // Optional custom domain the client has CNAMEd to the shared worker
+  // e.g. "tracker.lojadocliente.com" — drives domain_map KV entry
+  customDomain        String?                         @map("custom_domain")
+
+  // Meta (Facebook) — Conversions API
+  pixelFacebookId     String?
+  tokenFacebookApi    String?
+  testEventCode       String?
+
+  // TikTok — Events API
+  tikTokPixelId       String?
+  tokenTikTokApi      String?
+  testEventCodeTikTok String?
+
+  // Google Analytics 4 — Measurement Protocol
+  ga4MeasurementId    String?  @map("ga4_measurement_id")
+  ga4ApiSecret        String?  @map("ga4_api_secret")
+
+  // Google Ads — Enhanced Conversions (server-side)
+  googleAdsConversionId   String?  @map("google_ads_conversion_id")
+  googleAdsLabelContact   String?  @map("google_ads_label_contact")
+  googleAdsLabelLead      String?  @map("google_ads_label_lead")
+
+  // Checkout config
+  sendPurchaseFromWeb Boolean        @default(true)
+  cartpandaStoreId    String?
+
+  users         users           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  integrations  integrations[]
+  projectAccess project_access[]
+  pixelEvents   pixel_events[]
+}
+
+// Tabela genérica de integrações — uma linha por plataforma por projeto.
+// config (Json) armazena credenciais e configurações específicas da plataforma.
+// Esse modelo escala para qualquer nova plataforma sem migration de schema.
+//
+// Exemplos de type + config:
+//   meta      → { pixelId, token, testEventCode }
+//   tiktok    → { pixelId, token, testEventCode }
+//   cartpanda → { storeId, sendPurchaseFromWeb }
+//   green     → { webhookSecret, merchantId }
+//   hotmart   → { webhookSecret }
+//   yampi     → { secretKey, alias }
+model integrations {
+  id        String   @id
+  projectId String
+  type      String   // 'meta' | 'tiktok' | 'cartpanda' | 'green' | ...
+  config    Json     @default("{}")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   projects @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, type])
+  @@index([projectId])
+}
+
+// Stores billing platform configuration as JSON.
+// Key 'main' holds the complete billing config object.
+model billing_config {
+  id        String   @id
+  key       String   @unique
+  value     String   @default("{}")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("billing_config")
+}
+
+// plan values: 'free' | 'starter' | 'pro' | 'business' | 'agency'
+// planStartDate: when the current plan cycle started (used for monthly sale counter reset)
+model users {
+  id               String     @id
+  email            String     @unique
+  name             String?
+  password         String
+  role             String     @default("USER")
+  plan             String     @default("free")
+  planStartDate    DateTime?
+  stripeCustomerId String?    @map("stripe_customer_id")
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  // UUID público estável para webhooks de nível de conta (?aid=).
+  // Gerado uma vez por usuário, nunca alterado.
+  // Usado como chave em KV (account:<webhookAccountId>) e no D1 (account_id).
+  webhookAccountId String     @unique @default(uuid()) @map("webhook_account_id")
+  timezone         String     @default("America/Sao_Paulo") @map("timezone")
+
+  projects          projects[]
+  ownedMemberships  team_memberships[] @relation("owned_memberships")
+  memberMemberships team_memberships[] @relation("member_in")
+  accountWebhooks   account_webhooks[]
+}
+
+// account_webhooks: Webhook endpoints configuráveis por conta.
+// Cada endpoint tem um ID único (wid) que aparece na URL (?wid=<id>).
+// O campo projectIds armazena os pixelIds dos projetos que devem receber
+// o CAPI quando uma venda chegar neste endpoint.
+//
+// gateway values: 'hotmart' | 'kiwify' | 'kirvano' | 'cartpanda' | 'shopify'
+//               | 'ticto' | 'hubla' | 'eduzz' | 'perfectpay' | 'payt'
+//               | 'greenn' | 'lastlink' | 'pagtrust'
+model account_webhooks {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  gateway    String
+  name       String
+  // Array de pixelIds (project.pixelId) associados a este endpoint
+  projectIds String[] @default([]) @map("project_ids")
+  type       String   @default("manual")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account_webhooks")
+}
+
+// team_memberships: links a member user to an owner's account.
+// role values: 'admin' | 'analyst' | 'viewer'
+//   admin   — all projects, cannot manage billing/team
+//   analyst — read-only analytics, only on granted projects
+//   viewer  — scripts/webhooks only, only on granted projects
+model team_memberships {
+  id        String   @id
+  ownerId   String
+  userId    String
+  role      String   // 'admin' | 'analyst' | 'viewer'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner         users          @relation("owned_memberships", fields: [ownerId], references: [id], onDelete: Cascade)
+  member        users          @relation("member_in",         fields: [userId],  references: [id], onDelete: Cascade)
+  projectAccess project_access[]
+
+  @@unique([ownerId, userId])
+  @@index([ownerId])
+  @@index([userId])
+}
+
+// pixel_events: event rules for direct-response projects.
+// Rules are returned to direct-pixel.js on PageView and wired browser-side.
+//
+// triggerType values:
+//   'click'        — fires when user clicks element matching selector or buttonText
+//   'form_submit'  — fires when form matching selector is submitted
+//   'scroll'       — fires when user scrolls to scrollDepth % of page
+//   'time_on_page' — fires after timeSeconds seconds on page
+//   'pageload'     — fires immediately after PageView (e.g. custom ViewContent)
+model pixel_events {
+  id          String   @id
+  projectId   String   @map("project_id")
+  eventName   String   @map("event_name")
+  triggerType String   @map("trigger_type")
+  selector    String?
+  buttonText  String?  @map("button_text")
+  scrollDepth Int?     @map("scroll_depth")
+  timeSeconds Int?     @map("time_seconds")
+  customData  Json     @default("{}") @map("custom_data")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project  projects @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectId, isActive])
+  @@map("pixel_events")
+}
+
+// project_access: grants a team member access to a specific project.
+// Used for roles 'analyst' and 'viewer' (admin inherits all projects).
+model project_access {
+  id           String   @id
+  membershipId String
+  projectId    String
+  createdAt    DateTime @default(now())
+
+  membership team_memberships @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  project    projects         @relation(fields: [projectId],    references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, projectId])
+  @@index([membershipId])
+}

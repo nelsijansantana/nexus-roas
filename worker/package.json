@@ -1,0 +1,23 @@
+{
+  "name": "nexus-worker",
+  "version": "1.0.0",
+  "description": "Autonomous Cloudflare Worker — CAPI dispatch + Nexus ROAS analytics bridge",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "build:pixel": "node build-pixel.mjs",
+    "prebuild": "npm run build:pixel && node -e \"require('fs').copyFileSync('pixel.js', 'pixel-template.txt')\"",
+    "dev": "npm run prebuild && wrangler dev",
+    "deploy": "npm run prebuild && wrangler deploy",
+    "type-check": "tsc --noEmit",
+    "db:create": "wrangler d1 create nexus-db",
+    "db:migrate": "wrangler d1 execute nexus-db --file=./schema.sql",
+    "db:migrate:local": "wrangler d1 execute nexus-db --local --file=./schema.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240405.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.4.5",
+    "wrangler": "^4.83.0"
+  }
+}

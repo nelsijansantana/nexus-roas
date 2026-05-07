@@ -1,0 +1,73 @@
+# ── Directories renamed / legacy (never commit old names) ─────────────────────
+data-insights-hub/
+nexus-worker/
+
+# ── Environment & secrets ──────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Dependencies ───────────────────────────────────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ── Build outputs ──────────────────────────────────────────────────────────────
+dist/
+**/dist/
+build/
+.next/
+
+# ── Cloudflare / Wrangler ──────────────────────────────────────────────────────
+.wrangler/
+**/.wrangler/
+worker/.wrangler/
+
+# Generated wrangler.toml — only the .template is versioned. install.sh/dev fills in real IDs.
+worker/wrangler.toml
+worker/wrangler.toml.client
+worker/wrangler.toml.staging
+
+# ── Logs ───────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── OS ─────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE & local tooling ────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.claude/*
+!.claude/commands/
+*.swp
+*.swo
+
+# ── Docker runtime files ───────────────────────────────────────────────────────
+.env.prod
+.env.staging
+
+# ── Prisma generated ───────────────────────────────────────────────────────────
+server/src/generated/
+
+# ── Test coverage ──────────────────────────────────────────────────────────────
+coverage/
+**/coverage/
+
+# ── Misc ───────────────────────────────────────────────────────────────────────
+*.tsbuildinfo
+.turbo/
+
+# ── Local helper scripts (may contain secrets, not for distribution) ──────────
+scripts/_*.py
+scripts/_*.sh
+
+# ── Backups ───────────────────────────────────────────────────────────────────
+*.bak
+*.backup
+.git.backup*/
+.git-backup*/

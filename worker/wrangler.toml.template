@@ -1,0 +1,41 @@
+name = "nexus-worker"
+main = "src/index.ts"
+compatibility_date = "2024-04-01"
+
+# ── D1 Database ───────────────────────────────────────────────────────────────
+# ID preenchido automaticamente pelo install.sh
+[[d1_databases]]
+binding       = "DB"
+database_name = "nexus-db"
+database_id   = "__D1_DATABASE_ID__"
+
+# ── KV Namespace ─────────────────────────────────────────────────────────────
+# ID preenchido automaticamente pelo install.sh
+[[kv_namespaces]]
+binding = "SITE_CONFIG_KV"
+id      = "__KV_NAMESPACE_ID__"
+
+# ── Static asset: pixel script ────────────────────────────────────────────────
+[[rules]]
+type      = "Text"
+globs     = ["**/*.txt"]
+fallthrough = true
+
+# ── Environment Variables ─────────────────────────────────────────────────────
+[vars]
+SITE_CONFIG = "{}"
+
+# ── Queue — gravações D1 assíncronas ─────────────────────────────────────────
+[[queues.producers]]
+binding = "PERSISTENCE_QUEUE"
+queue   = "nexus-persistence"
+
+[[queues.consumers]]
+queue             = "nexus-persistence"
+max_batch_size    = 50
+max_batch_timeout = 5
+max_concurrency   = 1
+
+# ── Scheduled Tasks ───────────────────────────────────────────────────────────
+[triggers]
+crons = ["0 3 * * *"]

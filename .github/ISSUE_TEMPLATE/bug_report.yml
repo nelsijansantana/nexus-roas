@@ -1,0 +1,54 @@
+name: Bug Report
+description: Something isn't working as expected
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Fill in as much detail as possible.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Server (NestJS API)
+        - Client (React dashboard)
+        - Worker (Cloudflare / pixel)
+        - Infrastructure / Docker
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      placeholder: Describe the bug clearly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Environment / logs
+      description: Browser version, Node version, relevant error logs or stack traces.
+      render: shell
