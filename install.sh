@@ -58,6 +58,13 @@ gen_secret() { openssl rand -hex 32; }
 # ── Root check ────────────────────────────────────────────────────────────────
 [[ $EUID -ne 0 ]] && die "Execute como root: sudo bash install.sh"
 
+# ── apt non-interactive mode ──────────────────────────────────────────────────
+# Prevents dpkg conffile prompts (e.g. sshd_config upgrade) from hanging the
+# install on a TTY-attached SSH session. Keeps existing config files on conflict.
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+APT_OPTS=(-y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold")
+
 # ── INSTALL_DIR — funciona com curl | bash (BASH_SOURCE pode ser /dev/stdin) ──
 if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
   INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -241,7 +248,8 @@ _log_raw "INFO  Configuração confirmada: APP_DOMAIN=${APP_DOMAIN} ADMIN_EMAIL=
 step 2 "Protegendo o servidor"
 
 log "Atualizando pacotes do sistema..."
-apt-get upgrade -y -qq
+apt-get update -qq
+apt-get upgrade "${APT_OPTS[@]}" -qq
 ok "Sistema atualizado."
 
 # Swap — cria 2GB se RAM < 4GB e swap não existe
@@ -261,7 +269,7 @@ fi
 
 # Firewall — só portas necessárias abertas
 log "Configurando firewall..."
-apt-get install -y ufw >/dev/null
+apt-get install "${APT_OPTS[@]}" ufw >/dev/null
 ufw --force reset    >/dev/null
 ufw default deny incoming  >/dev/null
 ufw default allow outgoing >/dev/null
@@ -273,13 +281,13 @@ ok "Firewall ativo — portas abertas: 22 (SSH), 80 (HTTP), 443 (HTTPS)."
 
 # Fail2ban — bloqueia IPs após tentativas de força bruta
 log "Instalando Fail2ban..."
-apt-get install -y fail2ban >/dev/null
+apt-get install "${APT_OPTS[@]}" fail2ban >/dev/null
 systemctl enable --now fail2ban >/dev/null
 ok "Fail2ban ativo — SSH protegido contra força bruta."
 
 # Atualizações automáticas de segurança
 log "Configurando atualizações automáticas de segurança..."
-apt-get install -y unattended-upgrades >/dev/null
+apt-get install "${APT_OPTS[@]}" unattended-upgrades >/dev/null
 cat > /etc/apt/apt.conf.d/20auto-upgrades <<'APTEOF'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
@@ -306,7 +314,7 @@ fi
 if ! command -v node &>/dev/null; then
   log "Instalando Node.js 20..."
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
-  apt-get install -y nodejs >/dev/null
+  apt-get install "${APT_OPTS[@]}" nodejs >/dev/null
   ok "Node.js instalado."
 else
   ok "Node.js $(node --version) já presente."
@@ -321,7 +329,7 @@ else
 fi
 
 if ! command -v jq &>/dev/null; then
-  apt-get install -y jq >/dev/null
+  apt-get install "${APT_OPTS[@]}" jq >/dev/null
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
