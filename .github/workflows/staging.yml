@@ -32,7 +32,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & push server (staging tag)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./server
           platforms: linux/amd64
@@ -42,7 +42,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build & push client (staging tag)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./client
           platforms: linux/amd64
