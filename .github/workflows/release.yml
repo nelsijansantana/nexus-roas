@@ -7,16 +7,16 @@ on:
 
 permissions:
   contents: write
-  packages: write
-
-env:
-  OWNER: ${{ github.repository_owner }}
 
 jobs:
-  # ── Job 1: Build imagens + empacotar + publicar release ──────────────────────
-  # Sempre roda. O cliente depende desse job para baixar o instalador.
+  # Empacota o instalador (install.sh + docker-compose + worker) e publica como
+  # GitHub Release. O install.sh no VPS baixa este tarball via:
+  #   github.com/<owner>/nexus-roas/releases/latest/download/nexus-roas.tar.gz
+  #
+  # As imagens Docker são publicadas manualmente via .\publish.ps1 -Version X.Y.Z
+  # (não são buildadas aqui para evitar duplicação e problemas de permissão GHCR).
   release:
-    name: Build & publish release
+    name: Package & publish release
     runs-on: ubuntu-latest
 
     steps:
@@ -25,39 +25,6 @@ jobs:
       - name: Extract version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build & push server
-        uses: docker/build-push-action@v5
-        with:
-          context: ./server
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ghcr.io/${{ env.OWNER }}/nexus-server:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ env.OWNER }}/nexus-server:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build & push client
-        uses: docker/build-push-action@v5
-        with:
-          context: ./client
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ghcr.io/${{ env.OWNER }}/nexus-client:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ env.OWNER }}/nexus-client:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Package installer
         run: |
@@ -86,28 +53,3 @@ jobs:
           files: |
             nexus-roas.tar.gz
             bootstrap.sh
-
-  # ── Job 2: Deploy no seu servidor de produção ─────────────────────────────────
-  # continue-on-error: true garante que falha aqui não bloqueia a release.
-  # Adicione os secrets DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, GHCR_PULL_TOKEN
-  # em: github.com/nelsijansantana/nexus-roas/settings/secrets/actions
-  deploy:
-    name: Deploy to production server
-    runs-on: ubuntu-latest
-    needs: release
-    continue-on-error: true
-
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            set -e
-            echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            cd /opt/nexus-roas
-            git pull origin main
-            sed -i "s|IMAGE_VERSION=.*/|IMAGE_VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')|" .env.prod
-            make deploy
