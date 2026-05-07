@@ -1,42 +1,49 @@
 version: 2
 
+# Conservative cadence: monthly batches, aggressive grouping, low PR ceiling.
+# Goal: keep dependencies fresh without flooding the inbox.
 updates:
   - package-ecosystem: npm
     directory: /server
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 2
     groups:
-      nestjs:
-        patterns: ["@nestjs/*"]
-      prisma:
-        patterns: ["prisma", "@prisma/*"]
+      production-deps:
+        dependency-type: production
+        update-types: [minor, patch]
+      dev-deps:
+        dependency-type: development
+        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /client
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 2
     groups:
-      react:
-        patterns: ["react", "react-*", "@types/react*"]
-      radix:
-        patterns: ["@radix-ui/*"]
-      tanstack:
-        patterns: ["@tanstack/*"]
+      production-deps:
+        dependency-type: production
+        update-types: [minor, patch]
+      dev-deps:
+        dependency-type: development
+        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /worker
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 3
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      worker-deps:
+        patterns: ["*"]
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      actions-deps:
+        patterns: ["*"]
