@@ -18,4 +18,4 @@ curl -sSL "https://github.com/nelsijansantana/nexus-roas/releases/latest/downloa
 echo -e "${GREEN}Pacote baixado. Iniciando instalação...${NC}"
 echo ""
 
-exec bash "$TMPDIR/nexus-roas/install.sh"
+exec bash "$TMPDIR/nexus-roas/install.sh" </dev/tty
