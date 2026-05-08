@@ -71,3 +71,30 @@ scripts/_*.sh
 *.backup
 .git.backup*/
 .git-backup*/
+
+# Environment & Secrets (AIOS)
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Dependencies (AIOS)
+node_modules
+
+# Build & Logs (AIOS)
+logs/
+
+# AIOS Local (AIOS)
+.aios-core/local/
+.claude/settings.local.json
+.aios/install-log.txt
+
+# ── AI / Agent tooling (local runtime — não faz parte do produto) ─────────────
+.aios-core/
+.antigravity/
+.codex/
+.cursor/
+.gemini/
+.github/agents/
+AGENTS.md
+.claude/commands/AIOS/
