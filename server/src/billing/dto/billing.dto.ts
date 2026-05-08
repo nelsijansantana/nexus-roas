@@ -1,4 +1,4 @@
-import { IsString, IsIn, IsOptional } from 'class-validator';
+import { IsString, IsIn } from 'class-validator';
 
 export class CreateCheckoutDto {
   @IsString()
@@ -16,8 +16,8 @@ export class SaveBillingConfigDto {
 // ─── Types for the billing config object stored in DB ───────────────────────
 
 export interface StripePlanConfig {
-  monthly?: string;   // Stripe Price ID
-  annual?: string;    // Stripe Price ID
+  monthly?: string; // Stripe Price ID
+  annual?: string; // Stripe Price ID
 }
 
 export interface StripeConfig {
@@ -29,8 +29,8 @@ export interface StripeConfig {
 }
 
 export interface ExternalPlanConfig {
-  monthly?: string;  // checkout URL
-  annual?: string;   // checkout URL
+  monthly?: string; // checkout URL
+  annual?: string; // checkout URL
 }
 
 export interface HotmartConfig {

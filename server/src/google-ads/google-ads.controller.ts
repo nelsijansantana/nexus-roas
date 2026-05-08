@@ -24,7 +24,9 @@ export class GoogleAdsController {
 
   private extractToken(authHeader: string): string {
     if (!authHeader?.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Missing or invalid Authorization header');
+      throw new UnauthorizedException(
+        'Missing or invalid Authorization header',
+      );
     }
     return authHeader.slice(7);
   }
@@ -55,11 +57,18 @@ export class GoogleAdsController {
     @Query('error') error?: string,
   ) {
     if (error) {
-      const frontendUrl = (this.googleAdsService as any).frontendUrl ?? 'http://localhost:5173';
-      return { url: `${frontendUrl}/integrations/google-ads?error=${encodeURIComponent(error)}` };
+      const frontendUrl =
+        (this.googleAdsService as any).frontendUrl ?? 'http://localhost:5173';
+      return {
+        url: `${frontendUrl}/integrations/google-ads?error=${encodeURIComponent(error)}`,
+      };
     }
-    if (!code || !state) throw new BadRequestException('code and state are required');
-    const { redirectUrl } = await this.googleAdsService.handleCallback(code, state);
+    if (!code || !state)
+      throw new BadRequestException('code and state are required');
+    const { redirectUrl } = await this.googleAdsService.handleCallback(
+      code,
+      state,
+    );
     return { url: redirectUrl };
   }
 
@@ -86,10 +95,13 @@ export class GoogleAdsController {
     @Query('session') sessionId: string,
     @Query('customerId') customerId: string,
   ) {
-    if (!sessionId)    throw new BadRequestException('session is required');
-    if (!customerId)   throw new BadRequestException('customerId is required');
+    if (!sessionId) throw new BadRequestException('session is required');
+    if (!customerId) throw new BadRequestException('customerId is required');
     this.extractToken(authHeader);
-    const conversionActions = await this.googleAdsService.listConversionActions(sessionId, customerId);
+    const conversionActions = await this.googleAdsService.listConversionActions(
+      sessionId,
+      customerId,
+    );
     return { conversionActions };
   }
 
@@ -112,7 +124,8 @@ export class GoogleAdsController {
   @Post('connect')
   async connect(
     @Headers('authorization') authHeader: string,
-    @Body() body: {
+    @Body()
+    body: {
       sessionId: string;
       projectId: string;
       customerId: string;
@@ -121,13 +134,21 @@ export class GoogleAdsController {
     },
   ) {
     const { sessionId, projectId, customerId, conversionId, events } = body;
-    if (!sessionId)    throw new BadRequestException('sessionId is required');
-    if (!projectId)    throw new BadRequestException('projectId is required');
-    if (!customerId)   throw new BadRequestException('customerId is required');
-    if (!conversionId) throw new BadRequestException('conversionId is required');
-    if (!events || typeof events !== 'object') throw new BadRequestException('events is required');
+    if (!sessionId) throw new BadRequestException('sessionId is required');
+    if (!projectId) throw new BadRequestException('projectId is required');
+    if (!customerId) throw new BadRequestException('customerId is required');
+    if (!conversionId)
+      throw new BadRequestException('conversionId is required');
+    if (!events || typeof events !== 'object')
+      throw new BadRequestException('events is required');
     this.extractToken(authHeader);
-    await this.googleAdsService.connect({ sessionId, projectId, customerId, conversionId, events });
+    await this.googleAdsService.connect({
+      sessionId,
+      projectId,
+      customerId,
+      conversionId,
+      events,
+    });
     return { success: true };
   }
 

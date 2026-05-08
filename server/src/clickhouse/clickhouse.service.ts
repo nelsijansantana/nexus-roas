@@ -16,7 +16,7 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     this.client = createClient({
-      url:      this.config.get<string>('CLICKHOUSE_HOST', 'http://localhost:8123'),
+      url: this.config.get<string>('CLICKHOUSE_HOST', 'http://localhost:8123'),
       username: this.config.get<string>('CLICKHOUSE_USER', 'default'),
       password: this.config.get<string>('CLICKHOUSE_PASSWORD', ''),
       database: this.config.get<string>('CLICKHOUSE_DB', 'nexus_roas'),
@@ -30,14 +30,17 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
 
   async query<T>(sql: string, params?: Record<string, unknown>): Promise<T[]> {
     const result = await this.client.query({
-      query:        sql,
+      query: sql,
       query_params: params,
-      format:       'JSONEachRow',
+      format: 'JSONEachRow',
     });
     return result.json<T>();
   }
 
-  async insert<T extends Record<string, any>>(table: string, rows: T[]): Promise<void> {
+  async insert<T extends Record<string, any>>(
+    table: string,
+    rows: T[],
+  ): Promise<void> {
     if (!rows.length) return;
     await this.client.insert({ table, values: rows, format: 'JSONEachRow' });
   }
@@ -45,10 +48,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
   // ── Schema bootstrap ─────────────────────────────────────────────────────────
 
   private async ensureTables(): Promise<void> {
-    const host     = this.config.get<string>('CLICKHOUSE_HOST', 'http://localhost:8123');
+    const host = this.config.get<string>(
+      'CLICKHOUSE_HOST',
+      'http://localhost:8123',
+    );
     const username = this.config.get<string>('CLICKHOUSE_USER', 'default');
     const password = this.config.get<string>('CLICKHOUSE_PASSWORD', '');
-    const db       = this.config.get<string>('CLICKHOUSE_DB', 'nexus_roas');
+    const db = this.config.get<string>('CLICKHOUSE_DB', 'nexus_roas');
 
     try {
       // Wait for ClickHouse to be ready (Docker startup race)
@@ -56,14 +62,20 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       while (retries > 0) {
         try {
           const adminClient = createClient({ url: host, username, password });
-          await this.execAndConsume(adminClient, `CREATE DATABASE IF NOT EXISTS \`${db}\``);
+          await this.execAndConsume(
+            adminClient,
+            `CREATE DATABASE IF NOT EXISTS \`${db}\``,
+          );
           await adminClient.close();
           break;
         } catch {
           retries--;
-          this.logger.warn(`Aguardando ClickHouse... tentativas restantes: ${retries}`);
-          if (retries === 0) throw new Error('ClickHouse não respondeu após 5 tentativas');
-          await new Promise(r => setTimeout(r, 5000));
+          this.logger.warn(
+            `Aguardando ClickHouse... tentativas restantes: ${retries}`,
+          );
+          if (retries === 0)
+            throw new Error('ClickHouse não respondeu após 5 tentativas');
+          await new Promise((r) => setTimeout(r, 5000));
         }
       }
 
@@ -84,7 +96,9 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
   // ── Tabelas legadas (mantidas para retrocompatibilidade) ──────────────────────
 
   private async _ensureLegacyTables(): Promise<void> {
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS leads (
         id                String,
         pixel_id          String,
@@ -131,27 +145,38 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         updated_at        DateTime DEFAULT now()
       ) ENGINE = ReplacingMergeTree(updated_at)
       ORDER BY (pixel_id, id)
-    `);
+    `,
+    );
 
     // Migrations idempotentes para colunas adicionadas depois da criação inicial
     for (const col of [
       `cart_token String DEFAULT ''`,
-      `utm_source String DEFAULT ''`, `utm_medium String DEFAULT ''`,
-      `utm_campaign String DEFAULT ''`, `utm_content String DEFAULT ''`,
-      `utm_term String DEFAULT ''`, `utm_id String DEFAULT ''`,
-      `utm_platform String DEFAULT ''`, `utm_network String DEFAULT ''`,
-      `placement String DEFAULT ''`, `creative_format String DEFAULT ''`,
-      `ad_id String DEFAULT ''`, `adset_id String DEFAULT ''`,
-      `campaign_id String DEFAULT ''`, `conversion_type String DEFAULT ''`,
+      `utm_source String DEFAULT ''`,
+      `utm_medium String DEFAULT ''`,
+      `utm_campaign String DEFAULT ''`,
+      `utm_content String DEFAULT ''`,
+      `utm_term String DEFAULT ''`,
+      `utm_id String DEFAULT ''`,
+      `utm_platform String DEFAULT ''`,
+      `utm_network String DEFAULT ''`,
+      `placement String DEFAULT ''`,
+      `creative_format String DEFAULT ''`,
+      `ad_id String DEFAULT ''`,
+      `adset_id String DEFAULT ''`,
+      `campaign_id String DEFAULT ''`,
+      `conversion_type String DEFAULT ''`,
     ]) {
       const name = col.split(' ')[0];
-      await this.execAndConsume(this.client,
+      await this.execAndConsume(
+        this.client,
         `ALTER TABLE leads ADD COLUMN IF NOT EXISTS ${col}`,
       ).catch(() => {});
       void name; // suppress unused-var lint
     }
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS events (
         id            String,
         lead_id       String DEFAULT '',
@@ -174,13 +199,17 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ORDER BY (pixel_id, event_time, event_type)
       PARTITION BY toYYYYMM(event_time)
       TTL event_time + INTERVAL 1 YEAR
-    `);
+    `,
+    );
 
     for (const col of [
-      `value Float64 DEFAULT 0`, `currency String DEFAULT 'BRL'`,
-      `content_type String DEFAULT 'product'`, `custom_data String DEFAULT ''`,
+      `value Float64 DEFAULT 0`,
+      `currency String DEFAULT 'BRL'`,
+      `content_type String DEFAULT 'product'`,
+      `custom_data String DEFAULT ''`,
     ]) {
-      await this.execAndConsume(this.client,
+      await this.execAndConsume(
+        this.client,
         `ALTER TABLE events ADD COLUMN IF NOT EXISTS ${col}`,
       ).catch(() => {});
     }
@@ -199,7 +228,9 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
   //   • Todos os click IDs + CAPI status por linha = ready for ML
 
   private async _ensureNxEvents(): Promise<void> {
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS nx_events (
         -- Identidade
         pixel_id      String,
@@ -270,11 +301,14 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = MergeTree()
       PARTITION BY toYYYYMM(event_time)
       ORDER BY (pixel_id, event_date, channel, utm_campaign, event_time)
-    `);
+    `,
+    );
 
     // nx_user_events — view materializada leve para ML (jornada por usuário)
     // ORDER BY (pixel_id, nx_user, event_time) → queries de atribuição multi-touch
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS nx_user_events (
         pixel_id     String,
         nx_user      String,
@@ -292,9 +326,12 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = MergeTree()
       PARTITION BY toYYYYMM(event_time)
       ORDER BY (pixel_id, nx_user, event_time)
-    `);
+    `,
+    );
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE MATERIALIZED VIEW IF NOT EXISTS nx_user_events_mv
       TO nx_user_events AS
       SELECT
@@ -302,7 +339,8 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         channel, utm_source, utm_medium, utm_campaign, utm_content,
         order_id, revenue, match_type
       FROM nx_events
-    `);
+    `,
+    );
   }
 
   // ── Tabelas de ML ─────────────────────────────────────────────────────────────
@@ -310,7 +348,9 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
   private async _ensureMLTables(): Promise<void> {
     // Resultados de modelos de atribuição (Shapley, Markov, linear, last_click)
     // ReplacingMergeTree: dedup por (pixel_id, run_date, model, channel, utm_campaign)
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS attribution_results (
         pixel_id               String,
         run_date               Date,
@@ -324,10 +364,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = ReplacingMergeTree(computed_at)
       ORDER BY (pixel_id, run_date, model, channel, utm_campaign)
       PARTITION BY toYYYYMM(run_date)
-    `);
+    `,
+    );
 
     // Predições de LTV e churn por usuário (pipeline Python semanal)
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS user_predictions (
         pixel_id     String,
         nx_user      String,
@@ -342,10 +385,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = ReplacingMergeTree(predicted_at)
       ORDER BY (pixel_id, nx_user, run_date)
       PARTITION BY toYYYYMM(run_date)
-    `);
+    `,
+    );
 
     // Log de anomalias detectadas pelo pipeline de monitoramento
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS anomaly_log (
         pixel_id    String,
         metric      LowCardinality(String),
@@ -357,13 +403,16 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = MergeTree()
       ORDER BY (pixel_id, detected_at, metric)
       PARTITION BY toYYYYMM(detected_at)
-    `);
+    `,
+    );
   }
 
   // ── Tabelas de gasto em anúncios (sync diário via jobs service) ───────────────
 
   private async _ensureAdSpendTables(): Promise<void> {
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS nx_meta_ads (
         pixel_id      String,
         ad_date       Date,
@@ -380,9 +429,12 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = ReplacingMergeTree(synced_at)
       ORDER BY (pixel_id, ad_date, campaign_id, adset_id, ad_id)
       PARTITION BY toYYYYMM(ad_date)
-    `);
+    `,
+    );
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS nx_tiktok_ads (
         pixel_id      String,
         ad_date       Date,
@@ -400,9 +452,12 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = ReplacingMergeTree(synced_at)
       ORDER BY (pixel_id, ad_date, campaign_id, adgroup_id, ad_id)
       PARTITION BY toYYYYMM(ad_date)
-    `);
+    `,
+    );
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS nx_google_ads (
         pixel_id      String,
         ad_date       Date,
@@ -418,7 +473,8 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = ReplacingMergeTree(synced_at)
       ORDER BY (pixel_id, ad_date, campaign_id, adgroup_id)
       PARTITION BY toYYYYMM(ad_date)
-    `);
+    `,
+    );
   }
 
   // ── Tabelas de agregação (SummingMergeTree) ───────────────────────────────────
@@ -428,7 +484,9 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
 
   private async _ensureAggregates(): Promise<void> {
     // Receita diária total (legado — mantido para compatibilidade)
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS events_daily_revenue (
         pixel_id   String,
         event_date Date,
@@ -437,9 +495,12 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = SummingMergeTree((revenue, sales))
       ORDER BY (pixel_id, event_date)
       PARTITION BY toYYYYMM(event_date)
-    `);
+    `,
+    );
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE MATERIALIZED VIEW IF NOT EXISTS events_daily_revenue_mv
       TO events_daily_revenue AS
       SELECT
@@ -450,10 +511,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       FROM events
       WHERE event_type = 'Purchase'
       GROUP BY pixel_id, event_date
-    `);
+    `,
+    );
 
     // Receita diária por gateway de pagamento (legado)
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS events_daily_payment (
         pixel_id         String,
         event_date       Date,
@@ -463,9 +527,12 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = SummingMergeTree((revenue, sales))
       ORDER BY (pixel_id, event_date, payment_gateway)
       PARTITION BY toYYYYMM(event_date)
-    `);
+    `,
+    );
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE MATERIALIZED VIEW IF NOT EXISTS events_daily_payment_mv
       TO events_daily_payment AS
       SELECT
@@ -477,12 +544,15 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       FROM events
       WHERE event_type = 'Purchase'
       GROUP BY pixel_id, event_date, payment_gateway
-    `);
+    `,
+    );
 
     // ── Novos agregados para nx_events ────────────────────────────────────────
 
     // Receita diária por canal (substitui UTM JOIN para dashboard principal)
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS nx_daily_channel (
         pixel_id   String,
         event_date Date,
@@ -493,9 +563,12 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = SummingMergeTree((revenue, sales, events_count))
       ORDER BY (pixel_id, event_date, channel)
       PARTITION BY toYYYYMM(event_date)
-    `);
+    `,
+    );
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE MATERIALIZED VIEW IF NOT EXISTS nx_daily_channel_mv
       TO nx_daily_channel AS
       SELECT
@@ -507,10 +580,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         count()                                 AS events_count
       FROM nx_events
       GROUP BY pixel_id, event_date, channel
-    `);
+    `,
+    );
 
     // Receita diária por campanha
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS nx_daily_campaign (
         pixel_id     String,
         event_date   Date,
@@ -522,9 +598,12 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ) ENGINE = SummingMergeTree((revenue, sales))
       ORDER BY (pixel_id, event_date, channel, utm_campaign)
       PARTITION BY toYYYYMM(event_date)
-    `);
+    `,
+    );
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE MATERIALIZED VIEW IF NOT EXISTS nx_daily_campaign_mv
       TO nx_daily_campaign AS
       SELECT
@@ -537,14 +616,17 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         countIf(event_name = 'Purchase')         AS sales
       FROM nx_events
       GROUP BY pixel_id, event_date, channel, utm_campaign, utm_source
-    `);
+    `,
+    );
   }
 
   // ── Views analíticas ──────────────────────────────────────────────────────────
 
   private async _ensureViews(): Promise<void> {
     // Visão geral diária: receita, conversões, usuários únicos por canal
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE OR REPLACE VIEW v_nx_overview AS
       SELECT
         pixel_id,
@@ -557,10 +639,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       FROM nx_events
       GROUP BY pixel_id, event_date, channel
       ORDER BY pixel_id, event_date DESC
-    `);
+    `,
+    );
 
     // Funil de conversão
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE OR REPLACE VIEW v_nx_funnel AS
       SELECT
         pixel_id,
@@ -572,9 +657,12 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         uniqIf(nx_user, event_name = 'Purchase')           AS unique_buyers
       FROM nx_events
       GROUP BY pixel_id, event_date
-    `);
+    `,
+    );
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE OR REPLACE VIEW v_nx_top_campaigns AS
       SELECT
         pixel_id,
@@ -588,10 +676,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       GROUP BY pixel_id, channel, utm_campaign, utm_source
       ORDER BY revenue DESC
       LIMIT 30
-    `);
+    `,
+    );
 
     // Cobertura de sinais e CAPI
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE OR REPLACE VIEW v_nx_signal_coverage AS
       SELECT
         pixel_id,
@@ -606,10 +697,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       FROM nx_events
       WHERE event_name = 'Purchase'
       GROUP BY pixel_id, event_date
-    `);
+    `,
+    );
 
     // Qualidade da correspondência de identidade
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE OR REPLACE VIEW v_nx_match_quality AS
       SELECT
         pixel_id,
@@ -620,10 +714,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       FROM nx_events
       WHERE event_name = 'Purchase'
       GROUP BY pixel_id, event_date, match_type
-    `);
+    `,
+    );
 
     // Performance por dispositivo
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE OR REPLACE VIEW v_nx_device AS
       SELECT
         pixel_id,
@@ -635,10 +732,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         round(sumIf(revenue, event_name = 'Purchase'), 2) AS revenue
       FROM nx_events
       GROUP BY pixel_id, event_date, device_type, os, browser
-    `);
+    `,
+    );
 
     // Performance geográfica
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE OR REPLACE VIEW v_nx_geo AS
       SELECT
         pixel_id,
@@ -650,7 +750,8 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         round(sumIf(revenue, event_name = 'Purchase'), 2) AS revenue
       FROM nx_events
       GROUP BY pixel_id, event_date, country, region, city
-    `);
+    `,
+    );
   }
 
   // ── Backfill ──────────────────────────────────────────────────────────────────
@@ -673,14 +774,19 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log('Backfill: preenchendo agregados legados...');
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       INSERT INTO events_daily_revenue
       SELECT pixel_id, toDate(event_time) AS event_date, SUM(value) AS revenue, COUNT() AS sales
       FROM events WHERE event_type = 'Purchase'
       GROUP BY pixel_id, event_date
-    `);
+    `,
+    );
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       INSERT INTO events_daily_payment
       SELECT
         pixel_id,
@@ -689,7 +795,8 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         SUM(value) AS revenue, COUNT() AS sales
       FROM events WHERE event_type = 'Purchase'
       GROUP BY pixel_id, event_date, payment_gateway
-    `);
+    `,
+    );
 
     this.logger.log('Backfill: agregados legados prontos ✓');
   }
@@ -707,9 +814,13 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
     );
     if (parseInt(evCount?.c ?? '0', 10) === 0) return;
 
-    this.logger.log('Backfill: migrando events+leads → nx_events (pode demorar)...');
+    this.logger.log(
+      'Backfill: migrando events+leads → nx_events (pode demorar)...',
+    );
 
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       INSERT INTO nx_events
       SELECT
         e.pixel_id                                                    AS pixel_id,
@@ -768,7 +879,8 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         toInt8(-1) AS capi_ga4,  toInt8(-1) AS capi_gads
       FROM events e
       LEFT JOIN leads l ON l.id = e.lead_id AND l.pixel_id = e.pixel_id
-    `);
+    `,
+    );
 
     this.logger.log('Backfill: nx_events populado ✓');
   }
@@ -782,12 +894,14 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
     );
     if (parseInt(row?.count ?? '0', 10) === 0) return;
 
-    this.logger.warn('events: schema camelCase detectado — recriando com snake_case...');
+    this.logger.warn(
+      'events: schema camelCase detectado — recriando com snake_case...',
+    );
 
     const colRows = await this.query<{ name: string }>(
       `SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'events'`,
     );
-    const cols = new Set(colRows.map(r => r.name));
+    const cols = new Set(colRows.map((r) => r.name));
     const col = (snake: string, aliases: string[], fallback = `''`) => {
       if (cols.has(snake)) return snake;
       for (const a of aliases) if (cols.has(a)) return a;
@@ -795,7 +909,9 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
     };
 
     await this.execAndConsume(this.client, `DROP TABLE IF EXISTS events_v2`);
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS events_v2 (
         id String, lead_id String DEFAULT '', pixel_id String, event_type String,
         source_url String DEFAULT '', page_title String DEFAULT '',
@@ -808,28 +924,32 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
       ORDER BY (pixel_id, event_time, event_type)
       PARTITION BY toYYYYMM(event_time)
       TTL event_time + INTERVAL 1 YEAR
-    `);
-    await this.execAndConsume(this.client, `
+    `,
+    );
+    await this.execAndConsume(
+      this.client,
+      `
       INSERT INTO events_v2 SELECT
         id,
-        ${col('lead_id',     ['leadId', 'visitorId'])}   AS lead_id,
-        ${col('pixel_id',    ['pixelId'])}               AS pixel_id,
-        ${col('event_type',  ['eventType'])}             AS event_type,
-        ${col('source_url',  ['sourceUrl', 'url'])}      AS source_url,
-        ${col('page_title',  ['pageTitle'])}             AS page_title,
+        ${col('lead_id', ['leadId', 'visitorId'])}   AS lead_id,
+        ${col('pixel_id', ['pixelId'])}               AS pixel_id,
+        ${col('event_type', ['eventType'])}             AS event_type,
+        ${col('source_url', ['sourceUrl', 'url'])}      AS source_url,
+        ${col('page_title', ['pageTitle'])}             AS page_title,
         ${cols.has('referrer') ? 'referrer' : "''"}      AS referrer,
-        ${col('ip',          ['ipAddress', 'ip'])}       AS ip,
-        ${col('user_agent',  ['userAgent'])}             AS user_agent,
+        ${col('ip', ['ipAddress', 'ip'])}       AS ip,
+        ${col('user_agent', ['userAgent'])}             AS user_agent,
         ${cols.has('fbc') ? 'fbc' : "''"}               AS fbc,
         ${cols.has('fbp') ? 'fbp' : "''"}               AS fbp,
-        ${cols.has('value')    ? 'value'    : '0'}       AS value,
+        ${cols.has('value') ? 'value' : '0'}       AS value,
         ${cols.has('currency') ? 'currency' : "'BRL'"}   AS currency,
         ${col('content_type', ['contentType'], "'product'")} AS content_type,
-        ${col('custom_data',  ['customData'], "''")}     AS custom_data,
-        ${col('event_time',   ['eventTime', 'timestamp'], 'now()')} AS event_time,
-        ${col('created_at',   ['createdAt'], 'now()')}  AS created_at
+        ${col('custom_data', ['customData'], "''")}     AS custom_data,
+        ${col('event_time', ['eventTime', 'timestamp'], 'now()')} AS event_time,
+        ${col('created_at', ['createdAt'], 'now()')}  AS created_at
       FROM events
-    `);
+    `,
+    );
     await this.execAndConsume(this.client, `DROP TABLE events`);
     await this.execAndConsume(this.client, `RENAME TABLE events_v2 TO events`);
     this.logger.log('events migração camelCase → snake_case concluída ✓');
@@ -847,27 +967,64 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
     const colRows = await this.query<{ name: string }>(
       `SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'leads'`,
     );
-    const cols = new Set(colRows.map(r => r.name));
+    const cols = new Set(colRows.map((r) => r.name));
     const c = (snake: string, camel: string, fallback = `''`) =>
       cols.has(snake) ? snake : cols.has(camel) ? camel : fallback;
 
     const allCols = [
-      'id','email','phone','first_name','last_name','ip','ipv6','user_agent',
-      'fbc','fbp','gclid','gbraid','wbraid','ttclid','ttp','country','state',
-      'city','zipcode','parameters','meta_pixel_ids','tiktok_pixel_ids',
-      'external_id','gender','date_of_birth','cart_token','utm_source',
-      'utm_medium','utm_campaign','utm_content','utm_term','utm_id',
-      'utm_platform','utm_network','placement','creative_format','ad_id',
-      'adset_id','campaign_id','conversion_type','created_at','updated_at',
+      'id',
+      'email',
+      'phone',
+      'first_name',
+      'last_name',
+      'ip',
+      'ipv6',
+      'user_agent',
+      'fbc',
+      'fbp',
+      'gclid',
+      'gbraid',
+      'wbraid',
+      'ttclid',
+      'ttp',
+      'country',
+      'state',
+      'city',
+      'zipcode',
+      'parameters',
+      'meta_pixel_ids',
+      'tiktok_pixel_ids',
+      'external_id',
+      'gender',
+      'date_of_birth',
+      'cart_token',
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_content',
+      'utm_term',
+      'utm_id',
+      'utm_platform',
+      'utm_network',
+      'placement',
+      'creative_format',
+      'ad_id',
+      'adset_id',
+      'campaign_id',
+      'conversion_type',
+      'created_at',
+      'updated_at',
     ];
-    const mapping = allCols.map(s => {
+    const mapping = allCols.map((s) => {
       const camel = s.replace(/_([a-z])/g, (_, l) => l.toUpperCase());
       return `${c(s, camel)} AS ${s}`;
     });
     mapping.push(`${c('pixel_id', 'pixelId')} AS pixel_id`);
 
     await this.execAndConsume(this.client, `DROP TABLE IF EXISTS leads_v2`);
-    await this.execAndConsume(this.client, `
+    await this.execAndConsume(
+      this.client,
+      `
       CREATE TABLE IF NOT EXISTS leads_v2 (
         id String, pixel_id String,
         email String DEFAULT '', phone String DEFAULT '',
@@ -892,10 +1049,14 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
         created_at DateTime DEFAULT now(), updated_at DateTime DEFAULT now()
       ) ENGINE = ReplacingMergeTree(updated_at)
       ORDER BY (pixel_id, id)
-    `);
-    await this.execAndConsume(this.client, `
+    `,
+    );
+    await this.execAndConsume(
+      this.client,
+      `
       INSERT INTO leads_v2 SELECT ${mapping.join(', ')} FROM leads
-    `);
+    `,
+    );
     await this.execAndConsume(this.client, `DROP TABLE leads`);
     await this.execAndConsume(this.client, `RENAME TABLE leads_v2 TO leads`);
     this.logger.log('leads migração camelCase → snake_case concluída ✓');
@@ -903,7 +1064,10 @@ export class ClickHouseService implements OnModuleInit, OnModuleDestroy {
 
   // ── Utilitário: consome o stream retornado por exec() para evitar vazamento ───
 
-  private async execAndConsume(client: ClickHouseClient, query: string): Promise<void> {
+  private async execAndConsume(
+    client: ClickHouseClient,
+    query: string,
+  ): Promise<void> {
     const { stream } = await client.exec({ query });
     return new Promise((resolve, reject) => {
       stream.on('data', () => {});

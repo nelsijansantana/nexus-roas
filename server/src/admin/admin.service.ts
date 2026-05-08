@@ -1,10 +1,32 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClickHouseService } from '../clickhouse/clickhouse.service';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
-import { AdminCreateUserDto, AdminUpdateUserDto } from '../users/dto/admin-user.dto';
+import {
+  AdminCreateUserDto,
+  AdminUpdateUserDto,
+} from '../users/dto/admin-user.dto';
 import { PLANS, getPlan } from '../common/plans.config';
+
+type UserMetricRow = {
+  id: string;
+  plan: string | null;
+  role: string;
+  createdAt: Date;
+};
+type UserConsumptionRow = {
+  id: string;
+  email: string;
+  name: string;
+  plan: string | null;
+  planStartDate: Date | null;
+  _count: { projects: number };
+};
 
 @Injectable()
 export class AdminService {
@@ -23,7 +45,7 @@ export class AdminService {
       },
     });
 
-    return (users as any[]).map(u => ({
+    return (users as any[]).map((u) => ({
       id: u.id,
       email: u.email,
       name: u.name,
@@ -56,7 +78,8 @@ export class AdminService {
         password: hashedPassword,
         role: dto.role || 'USER',
         plan: (dto as any).plan || 'free',
-        planStartDate: (dto as any).plan && (dto as any).plan !== 'free' ? now : null,
+        planStartDate:
+          (dto as any).plan && (dto as any).plan !== 'free' ? now : null,
         updatedAt: now,
       },
     });
@@ -124,9 +147,9 @@ export class AdminService {
     const now = new Date();
 
     // ── Users ──────────────────────────────────────────────────────────────
-    const allUsers = await (this.prisma.users as any).findMany({
+    const allUsers = (await (this.prisma.users as any).findMany({
       select: { id: true, plan: true, role: true, createdAt: true },
-    });
+    })) as UserMetricRow[];
 
     const usersByPlan: Record<string, number> = {};
     for (const planId of Object.keys(PLANS)) {
@@ -138,19 +161,21 @@ export class AdminService {
       usersByPlan[planId] = (usersByPlan[planId] ?? 0) + 1;
     }
 
-    const totalCustomers = allUsers.filter((u: any) => u.role !== 'SUPER_ADMIN').length;
+    const totalCustomers = allUsers.filter(
+      (u) => u.role !== 'SUPER_ADMIN',
+    ).length;
 
     // New customers this month
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const newThisMonth = allUsers.filter(
-      (u: any) => u.role !== 'SUPER_ADMIN' && new Date(u.createdAt) >= monthStart,
+      (u) => u.role !== 'SUPER_ADMIN' && new Date(u.createdAt) >= monthStart,
     ).length;
 
     // New customers last month (for comparison)
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
     const newLastMonth = allUsers.filter(
-      (u: any) =>
+      (u) =>
         u.role !== 'SUPER_ADMIN' &&
         new Date(u.createdAt) >= lastMonthStart &&
         new Date(u.createdAt) < lastMonthEnd,
@@ -179,39 +204,40 @@ export class AdminService {
     const thirtyDaysAgo = Math.floor(now.getTime() / 1000) - 30 * 86400;
     const thisMonthUnix = Math.floor(monthStart.getTime() / 1000);
 
-    const [salesAllTime, salesThisMonth, revenueAllTime, revenueThisMonth] = await Promise.all([
-      this.clickhouse
-        .query<{ total: string }>(
-          `SELECT count() AS total FROM events WHERE event_type = 'Purchase'`,
-          {},
-        )
-        .then(r => parseInt(r[0]?.total ?? '0', 10))
-        .catch(() => 0),
+    const [salesAllTime, salesThisMonth, revenueAllTime, revenueThisMonth] =
+      await Promise.all([
+        this.clickhouse
+          .query<{ total: string }>(
+            `SELECT count() AS total FROM events WHERE event_type = 'Purchase'`,
+            {},
+          )
+          .then((r) => parseInt(r[0]?.total ?? '0', 10))
+          .catch(() => 0),
 
-      this.clickhouse
-        .query<{ total: string }>(
-          `SELECT count() AS total FROM events WHERE event_type = 'Purchase' AND event_time >= {since:UInt32}`,
-          { since: thisMonthUnix },
-        )
-        .then(r => parseInt(r[0]?.total ?? '0', 10))
-        .catch(() => 0),
+        this.clickhouse
+          .query<{ total: string }>(
+            `SELECT count() AS total FROM events WHERE event_type = 'Purchase' AND event_time >= {since:UInt32}`,
+            { since: thisMonthUnix },
+          )
+          .then((r) => parseInt(r[0]?.total ?? '0', 10))
+          .catch(() => 0),
 
-      this.clickhouse
-        .query<{ total: string }>(
-          `SELECT round(sum(value), 2) AS total FROM events WHERE event_type = 'Purchase'`,
-          {},
-        )
-        .then(r => parseFloat(r[0]?.total ?? '0'))
-        .catch(() => 0),
+        this.clickhouse
+          .query<{ total: string }>(
+            `SELECT round(sum(value), 2) AS total FROM events WHERE event_type = 'Purchase'`,
+            {},
+          )
+          .then((r) => parseFloat(r[0]?.total ?? '0'))
+          .catch(() => 0),
 
-      this.clickhouse
-        .query<{ total: string }>(
-          `SELECT round(sum(value), 2) AS total FROM events WHERE event_type = 'Purchase' AND event_time >= {since:UInt32}`,
-          { since: thisMonthUnix },
-        )
-        .then(r => parseFloat(r[0]?.total ?? '0'))
-        .catch(() => 0),
-    ]);
+        this.clickhouse
+          .query<{ total: string }>(
+            `SELECT round(sum(value), 2) AS total FROM events WHERE event_type = 'Purchase' AND event_time >= {since:UInt32}`,
+            { since: thisMonthUnix },
+          )
+          .then((r) => parseFloat(r[0]?.total ?? '0'))
+          .catch(() => 0),
+      ]);
 
     // ── Active users (had at least 1 event in last 30 days) ───────────────
     const activePixelIds = await this.clickhouse
@@ -219,7 +245,7 @@ export class AdminService {
         `SELECT DISTINCT pixel_id FROM events WHERE event_time >= {since:UInt32}`,
         { since: thirtyDaysAgo },
       )
-      .then(r => r.map(x => x.pixel_id))
+      .then((r) => r.map((x) => x.pixel_id))
       .catch(() => [] as string[]);
 
     const activeUserIds = await this.prisma.projects
@@ -228,15 +254,17 @@ export class AdminService {
         select: { userId: true },
         distinct: ['userId'],
       })
-      .then(r => r.length);
+      .then((r) => r.length);
 
     // ── Plan distribution for charts ──────────────────────────────────────
-    const planDistribution = Object.entries(usersByPlan).map(([planId, count]) => ({
-      plan: planId,
-      name: PLANS[planId]?.name ?? planId,
-      count,
-      monthlyRevenue: count * (PLANS[planId]?.priceMonthly ?? 0),
-    }));
+    const planDistribution = Object.entries(usersByPlan).map(
+      ([planId, count]) => ({
+        plan: planId,
+        name: PLANS[planId]?.name ?? planId,
+        count,
+        monthlyRevenue: count * (PLANS[planId]?.priceMonthly ?? 0),
+      }),
+    );
 
     return {
       customers: {
@@ -250,7 +278,8 @@ export class AdminService {
         mrr,
         arr,
         mrrLastMonth,
-        mrrGrowth: mrrLastMonth > 0 ? ((mrr - mrrLastMonth) / mrrLastMonth) * 100 : 0,
+        mrrGrowth:
+          mrrLastMonth > 0 ? ((mrr - mrrLastMonth) / mrrLastMonth) * 100 : 0,
       },
       salesProcessed: {
         allTime: salesAllTime,
@@ -264,43 +293,52 @@ export class AdminService {
   }
 
   async getUserConsumption(userId: string) {
-    const user = await (this.prisma.users as any).findUnique({
+    const user = (await (this.prisma.users as any).findUnique({
       where: { id: userId },
       include: {
         _count: { select: { projects: { where: { deletedAt: null } } } },
       },
-    });
+    })) as UserConsumptionRow | null;
     if (!user) throw new NotFoundException('Usuário não encontrado');
 
     const plan = getPlan(user.plan ?? 'free');
-    const planStart = user.planStartDate ? new Date(user.planStartDate) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const planStart = user.planStartDate
+      ? new Date(user.planStartDate)
+      : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
     const billingDay = planStart.getDate();
     const now = new Date();
-    const billingMonthStart = new Date(now.getFullYear(), now.getMonth(), billingDay);
-    if (billingMonthStart > now) billingMonthStart.setMonth(billingMonthStart.getMonth() - 1);
+    const billingMonthStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      billingDay,
+    );
+    if (billingMonthStart > now)
+      billingMonthStart.setMonth(billingMonthStart.getMonth() - 1);
     const billingStartUnix = Math.floor(billingMonthStart.getTime() / 1000);
 
     const userProjects = await this.prisma.projects.findMany({
       where: { userId, deletedAt: null },
       select: { pixelId: true, name: true, domain: true },
     });
-    const pixelIds = userProjects.map(p => p.pixelId);
+    const pixelIds = userProjects.map((p) => p.pixelId);
 
-    const salesThisMonth = pixelIds.length > 0
-      ? await this.clickhouse
-          .query<{ total: string }>(
-            `SELECT count() AS total FROM events
+    const salesThisMonth =
+      pixelIds.length > 0
+        ? await this.clickhouse
+            .query<{ total: string }>(
+              `SELECT count() AS total FROM events
              WHERE pixel_id IN {pixelIds:Array(String)}
                AND event_type = 'Purchase'
                AND event_time >= {since:UInt32}`,
-            { pixelIds, since: billingStartUnix },
-          )
-          .then(r => parseInt(r[0]?.total ?? '0', 10))
-          .catch(() => 0)
-      : 0;
+              { pixelIds, since: billingStartUnix },
+            )
+            .then((r) => parseInt(r[0]?.total ?? '0', 10))
+            .catch(() => 0)
+        : 0;
 
-    const isOverLimit = plan.salesPerMonth > 0 && salesThisMonth > plan.salesPerMonth;
+    const isOverLimit =
+      plan.salesPerMonth > 0 && salesThisMonth > plan.salesPerMonth;
     const overageCount = isOverLimit ? salesThisMonth - plan.salesPerMonth : 0;
     const overageAmount = overageCount * plan.overagePricePer;
 
@@ -318,14 +356,21 @@ export class AdminService {
         projectsLimit: plan.projects,
         salesThisMonth,
         salesLimit: plan.salesPerMonth,
-        percentUsed: plan.salesPerMonth > 0 ? Math.round((salesThisMonth / plan.salesPerMonth) * 100) : 0,
+        percentUsed:
+          plan.salesPerMonth > 0
+            ? Math.round((salesThisMonth / plan.salesPerMonth) * 100)
+            : 0,
         isOverLimit,
         overageCount,
         overageAmount,
       },
       billingCycle: {
         start: billingMonthStart,
-        end: new Date(billingMonthStart.getFullYear(), billingMonthStart.getMonth() + 1, billingDay),
+        end: new Date(
+          billingMonthStart.getFullYear(),
+          billingMonthStart.getMonth() + 1,
+          billingDay,
+        ),
       },
     };
   }

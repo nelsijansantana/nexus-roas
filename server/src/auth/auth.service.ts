@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException, OnApplicationBootstrap, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  OnApplicationBootstrap,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
@@ -9,8 +15,8 @@ import { LoginDto, RegisterDto, ChangePasswordDto } from './dto/auth.dto';
 export interface JwtPayload {
   userId: string;
   email: string;
-  role: string;       // system role: USER | SUPER_ADMIN
-  ownerId?: string;   // set when this user is a team member of another account
+  role: string; // system role: USER | SUPER_ADMIN
+  ownerId?: string; // set when this user is a team member of another account
   memberRole?: string; // set when ownerId is set: 'admin' | 'analyst' | 'viewer'
 }
 
@@ -25,7 +31,9 @@ export class AuthService implements OnApplicationBootstrap {
   ) {
     const secret = this.config.get<string>('JWT_SECRET');
     if (!secret) {
-      throw new Error('JWT_SECRET environment variable is not set. Refusing to start with an insecure default.');
+      throw new Error(
+        'JWT_SECRET environment variable is not set. Refusing to start with an insecure default.',
+      );
     }
     this.jwtSecret = secret;
   }
@@ -39,7 +47,9 @@ export class AuthService implements OnApplicationBootstrap {
     const adminPassword = this.config.get<string>('INITIAL_ADMIN_PASSWORD');
 
     if (!adminEmail || !adminPassword) {
-      this.logger.warn('[Bootstrap] INITIAL_ADMIN_EMAIL or INITIAL_ADMIN_PASSWORD not set — skipping Super Admin bootstrap.');
+      this.logger.warn(
+        '[Bootstrap] INITIAL_ADMIN_EMAIL or INITIAL_ADMIN_PASSWORD not set — skipping Super Admin bootstrap.',
+      );
       return;
     }
 
@@ -52,7 +62,7 @@ export class AuthService implements OnApplicationBootstrap {
         this.logger.log(`[Bootstrap] Creating Super Admin: ${adminEmail}`);
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(adminPassword, salt);
-        
+
         await (this.prisma.users as any).create({
           data: {
             id: randomUUID(),
@@ -65,7 +75,9 @@ export class AuthService implements OnApplicationBootstrap {
         });
         this.logger.log(`[Bootstrap] Super Admin created successfully.`);
       } else if (existing.role !== 'SUPER_ADMIN') {
-        this.logger.log(`[Bootstrap] Correcting role for ${adminEmail} to SUPER_ADMIN...`);
+        this.logger.log(
+          `[Bootstrap] Correcting role for ${adminEmail} to SUPER_ADMIN...`,
+        );
         await (this.prisma.users as any).update({
           where: { id: existing.id },
           data: { role: 'SUPER_ADMIN' },
@@ -75,7 +87,9 @@ export class AuthService implements OnApplicationBootstrap {
         this.logger.log(`[Bootstrap] Super Admin check: OK (${adminEmail})`);
       }
     } catch (error) {
-      this.logger.error(`[Bootstrap] Error during Admin initialization: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `[Bootstrap] Error during Admin initialization: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -99,7 +113,11 @@ export class AuthService implements OnApplicationBootstrap {
       select: { ownerId: true, role: true },
     });
 
-    const token = this.generateToken(user, membership?.ownerId, membership?.role);
+    const token = this.generateToken(
+      user,
+      membership?.ownerId,
+      membership?.role,
+    );
 
     return {
       token,
@@ -218,7 +236,11 @@ export class AuthService implements OnApplicationBootstrap {
     }
   }
 
-  private generateToken(user: any, ownerId?: string, memberRole?: string): string {
+  private generateToken(
+    user: any,
+    ownerId?: string,
+    memberRole?: string,
+  ): string {
     const payload: JwtPayload = {
       userId: user.id,
       email: user.email,

@@ -47,7 +47,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       // The connection is already closed; attempting to write a response will
       // cause a "write after end" error. Only write if the socket is still open.
       if (!res.headersSent && !req.socket?.destroyed) {
-        res.status(HttpStatus.BAD_REQUEST).json({ error: 'connection_aborted' });
+        res
+          .status(HttpStatus.BAD_REQUEST)
+          .json({ error: 'connection_aborted' });
       }
       return;
     }

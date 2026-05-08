@@ -90,7 +90,10 @@ export class TeamsController {
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  private extractOwner(authHeader: string): { userId: string; ownerId: string } {
+  private extractOwner(authHeader: string): {
+    userId: string;
+    ownerId: string;
+  } {
     if (!authHeader?.startsWith('Bearer ')) {
       throw new UnauthorizedException('Token não fornecido');
     }
@@ -98,7 +101,9 @@ export class TeamsController {
 
     // Only account owners (non-members) can manage team
     if (payload.ownerId) {
-      throw new ForbiddenException('Apenas o titular da conta pode gerenciar o time');
+      throw new ForbiddenException(
+        'Apenas o titular da conta pode gerenciar o time',
+      );
     }
 
     return { userId: payload.userId, ownerId: payload.userId };

@@ -13,7 +13,10 @@ import {
 } from '@nestjs/common';
 import { AuthService } from '../auth/auth.service';
 import { PixelEventsService } from './pixel-events.service';
-import { CreatePixelEventDto, UpdatePixelEventDto } from './dto/pixel-event.dto';
+import {
+  CreatePixelEventDto,
+  UpdatePixelEventDto,
+} from './dto/pixel-event.dto';
 
 @Controller('api/v1/projects/:projectId/pixel-events')
 export class PixelEventsController {

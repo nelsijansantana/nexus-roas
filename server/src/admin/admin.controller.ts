@@ -1,8 +1,20 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminService } from './admin.service';
-import { AdminCreateUserDto, AdminUpdateUserDto } from '../users/dto/admin-user.dto';
+import {
+  AdminCreateUserDto,
+  AdminUpdateUserDto,
+} from '../users/dto/admin-user.dto';
 
 @Controller('api/v1/admin')
 @UseGuards(RolesGuard)

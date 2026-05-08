@@ -36,7 +36,7 @@ export class IngestController {
       throw new UnauthorizedException('Invalid ingest key');
     }
 
-    await this.ingest.ingestEvent(dto);
+    this.ingest.ingestEvent(dto);
     return { ok: true };
   }
 

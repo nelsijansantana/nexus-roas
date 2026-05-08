@@ -3,8 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 // Run: npm install compression @types/compression
-// module: nodenext requires CJS interop via import= for non-ESM packages
-import compression = require('compression');
+import compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
@@ -39,4 +38,4 @@ async function bootstrap() {
   console.log(`📡 Pixel script: http://localhost:${port}/tracking/v1/pixel.js`);
 }
 
-bootstrap();
+void bootstrap();

@@ -23,35 +23,38 @@ import * as amqplib from 'amqplib';
  */
 
 export interface CapiMessage {
-  platform:    'meta' | 'tiktok';
-  eventType:   string;
-  eventId:     string;
-  sourceUrl?:  string;
-  lead:        Record<string, unknown>;
-  pixelId:     string;
-  token:       string;
+  platform: 'meta' | 'tiktok';
+  eventType: string;
+  eventId: string;
+  sourceUrl?: string;
+  lead: Record<string, unknown>;
+  pixelId: string;
+  token: string;
   customData?: Record<string, unknown>;
-  testCode?:   string;
-  attempt:     number;
+  testCode?: string;
+  attempt: number;
 }
 
-const DLX          = 'capi.dlx';
-const DLQ          = 'capi.dead';
-const QUEUE_META   = 'capi.meta';
+const DLX = 'capi.dlx';
+const DLQ = 'capi.dead';
+const QUEUE_META = 'capi.meta';
 const QUEUE_TIKTOK = 'capi.tiktok';
-const PREFETCH     = 4; // messages in-flight per consumer
+const PREFETCH = 4; // messages in-flight per consumer
 
 @Injectable()
 export class RabbitService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RabbitService.name);
 
   private connection: amqplib.ChannelModel | null = null;
-  private channel:    amqplib.Channel     | null = null;
-  private _available  = false;
+  private channel: amqplib.Channel | null = null;
+  private _available = false;
   private _warnedOnce = false; // suppress repeated "unavailable" log spam
 
   // Consumer callbacks registered via onMessage()
-  private readonly handlers = new Map<string, (msg: CapiMessage) => Promise<void>>();
+  private readonly handlers = new Map<
+    string,
+    (msg: CapiMessage) => Promise<void>
+  >();
 
   constructor(private readonly config: ConfigService) {}
 
@@ -63,7 +66,9 @@ export class RabbitService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.channel?.close();
       await this.connection?.close();
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   }
 
   get available(): boolean {
@@ -73,7 +78,9 @@ export class RabbitService implements OnModuleInit, OnModuleDestroy {
   // ── Connection ──────────────────────────────────────────────────────────────
 
   private async _connect(): Promise<void> {
-    const url = this.config.get<string>('RABBITMQ_URL') || 'amqp://guest:guest@localhost:5672';
+    const url =
+      this.config.get<string>('RABBITMQ_URL') ||
+      'amqp://guest:guest@localhost:5672';
     try {
       this.connection = await amqplib.connect(url);
       this.connection.on('error', () => this._onDisconnect());
@@ -93,7 +100,9 @@ export class RabbitService implements OnModuleInit, OnModuleDestroy {
       this._available = false;
       if (!this._warnedOnce) {
         this._warnedOnce = true;
-        this.logger.warn(`RabbitMQ unavailable — CAPI will use in-process queue (${err?.message}). Retrying silently.`);
+        this.logger.warn(
+          `RabbitMQ unavailable — CAPI will use in-process queue (${err?.message}). Retrying silently.`,
+        );
       } else {
         this.logger.debug(`RabbitMQ retry failed: ${err?.message}`);
       }
@@ -103,9 +112,9 @@ export class RabbitService implements OnModuleInit, OnModuleDestroy {
   }
 
   private _onDisconnect(): void {
-    this._available  = false;
+    this._available = false;
     this._warnedOnce = false; // reset so reconnect logs at WARN level again
-    this.channel    = null;
+    this.channel = null;
     this.connection = null;
     this.logger.warn('RabbitMQ disconnected — retrying in 15s');
     setTimeout(() => void this._connect(), 15_000);
@@ -119,8 +128,11 @@ export class RabbitService implements OnModuleInit, OnModuleDestroy {
     await ch.assertQueue(DLQ, { durable: true });
     await ch.bindQueue(DLQ, DLX, '');
 
-    const queueArgs = { durable: true, arguments: { 'x-dead-letter-exchange': DLX } };
-    await ch.assertQueue(QUEUE_META,   queueArgs);
+    const queueArgs = {
+      durable: true,
+      arguments: { 'x-dead-letter-exchange': DLX },
+    };
+    await ch.assertQueue(QUEUE_META, queueArgs);
     await ch.assertQueue(QUEUE_TIKTOK, queueArgs);
 
     await ch.prefetch(PREFETCH);
@@ -146,7 +158,10 @@ export class RabbitService implements OnModuleInit, OnModuleDestroy {
   // ── Consume ─────────────────────────────────────────────────────────────────
 
   /** Register a handler for a queue. Safe to call before connection is ready. */
-  async onMessage(queue: string, handler: (msg: CapiMessage) => Promise<void>): Promise<void> {
+  async onMessage(
+    queue: string,
+    handler: (msg: CapiMessage) => Promise<void>,
+  ): Promise<void> {
     this.handlers.set(queue, handler);
     if (this._available) {
       await this._startConsumer(queue, handler);
@@ -158,22 +173,24 @@ export class RabbitService implements OnModuleInit, OnModuleDestroy {
     handler: (msg: CapiMessage) => Promise<void>,
   ): Promise<void> {
     const ch = this.channel!;
-    await ch.consume(queue, async (raw) => {
+    await ch.consume(queue, (raw) => {
       if (!raw) return;
-      try {
-        const msg: CapiMessage = JSON.parse(raw.content.toString());
-        await handler(msg);
-        ch.ack(raw);
-      } catch {
-        // nack without requeue — goes to DLQ after x-dead-letter-exchange routing
-        ch.nack(raw, false, false);
-      }
+      void (async () => {
+        try {
+          const msg: CapiMessage = JSON.parse(raw.content.toString());
+          await handler(msg);
+          ch.ack(raw);
+        } catch {
+          // nack without requeue — goes to DLQ after x-dead-letter-exchange routing
+          ch.nack(raw, false, false);
+        }
+      })();
     });
     this.logger.log(`Consumer registered on queue: ${queue}`);
   }
 
   // ── Queue names (exported constants for callers) ─────────────────────────────
 
-  static readonly QUEUE_META   = QUEUE_META;
+  static readonly QUEUE_META = QUEUE_META;
   static readonly QUEUE_TIKTOK = QUEUE_TIKTOK;
 }

@@ -33,7 +33,7 @@ export class UsersService {
     });
 
     // Exclude password out of returned response
-    const { password, ...result } = newUser;
+    const { password: _, ...result } = newUser;
     return result;
   }
 }

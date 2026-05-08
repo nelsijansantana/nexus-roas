@@ -23,7 +23,10 @@ export class ProjectsController {
   ) {}
 
   @Post()
-  create(@Headers('authorization') authHeader: string, @Body() dto: CreateProjectDto) {
+  create(
+    @Headers('authorization') authHeader: string,
+    @Body() dto: CreateProjectDto,
+  ) {
     const user = this.extractUser(authHeader);
     // Projects are always owned by the account owner, not the member
     dto.userId = user.ownerId ?? user.userId;
@@ -37,13 +40,22 @@ export class ProjectsController {
   }
 
   @Get(':id')
-  findOne(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+  findOne(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+  ) {
     const user = this.extractUser(authHeader);
     return this.projectsService.findOne(id, user);
   }
 
   @Get(':id/worker/download')
-  async downloadWorker(@Param('id') id: string, @Res() res: Response, @Body() body: any, @Param() params: any, @Body('_user') user: any) {
+  async downloadWorker(
+    @Param('id') id: string,
+    @Res() res: Response,
+    @Body() body: any,
+    @Param() params: any,
+    @Body('_user') user: any,
+  ) {
     const buffer = await this.projectsService.getWorkerBundle(id, user);
 
     res.set({
@@ -66,7 +78,10 @@ export class ProjectsController {
   }
 
   @Delete(':id')
-  remove(@Headers('authorization') authHeader: string, @Param('id') id: string) {
+  remove(
+    @Headers('authorization') authHeader: string,
+    @Param('id') id: string,
+  ) {
     const user = this.extractUser(authHeader);
     return this.projectsService.remove(id, user);
   }

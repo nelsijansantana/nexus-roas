@@ -20,7 +20,12 @@ const FALLBACK_LICENSE: LicenseInfo = {
   tier: 'agency',
   status: 'active',
   expires_at: null,
-  limits: { max_projects: -1, max_sales_month: -1, max_seats: -1, data_retention_days: 365 },
+  limits: {
+    max_projects: -1,
+    max_sales_month: -1,
+    max_seats: -1,
+    data_retention_days: 365,
+  },
 };
 
 const REDIS_KEY = 'license:current';
@@ -39,11 +44,12 @@ export class LicenseService implements OnModuleInit {
   async onModuleInit() {
     await this.refreshLicense();
     // Re-validate every 24h
-    setInterval(() => this.refreshLicense(), REDIS_TTL * 1000);
+    setInterval(() => void this.refreshLicense(), REDIS_TTL * 1000);
   }
 
   async refreshLicense(): Promise<void> {
-    const key = this.config.get<string>('LICENSE_KEY') || 'NEXUS-INTERNAL-OWNER';
+    const key =
+      this.config.get<string>('LICENSE_KEY') || 'NEXUS-INTERNAL-OWNER';
     const workerUrl = this.config.get<string>('WORKER_URL');
     const domain = this.config.get<string>('APP_DOMAIN') || '';
 
@@ -56,14 +62,18 @@ export class LicenseService implements OnModuleInit {
       });
 
       if (res.ok) {
-        const data = await res.json() as LicenseInfo;
+        const data = (await res.json()) as LicenseInfo;
         this.license = data;
         await this.redis.set(REDIS_KEY, JSON.stringify(data), REDIS_TTL);
-        this.logger.log(`License OK — tier: ${data.tier}, status: ${data.status}`);
+        this.logger.log(
+          `License OK — tier: ${data.tier}, status: ${data.status}`,
+        );
         return;
       }
     } catch (err) {
-      this.logger.warn(`License server unreachable: ${(err as Error).message}. Using cached/fallback.`);
+      this.logger.warn(
+        `License server unreachable: ${(err as Error).message}. Using cached/fallback.`,
+      );
     }
 
     // Try Redis cache
@@ -71,17 +81,23 @@ export class LicenseService implements OnModuleInit {
       const cached = await this.redis.get(REDIS_KEY);
       if (cached) {
         this.license = JSON.parse(cached);
-        this.logger.log(`License loaded from cache — tier: ${this.license.tier}`);
+        this.logger.log(
+          `License loaded from cache — tier: ${this.license.tier}`,
+        );
         return;
       }
-    } catch {}
+    } catch {
+      /* no-op */
+    }
 
     // Final fallback: if LICENSE_KEY is the internal owner key, grant full access
     if (key === 'NEXUS-INTERNAL-OWNER') {
       this.license = FALLBACK_LICENSE;
       this.logger.warn('Using internal owner fallback license.');
     } else {
-      this.logger.warn('License validation failed and no cache available. Allowing with warning.');
+      this.logger.warn(
+        'License validation failed and no cache available. Allowing with warning.',
+      );
       // Don't block the server — just warn
     }
   }
@@ -115,7 +131,12 @@ export class LicenseService implements OnModuleInit {
     return this.adminRequest('GET', '/admin/licenses');
   }
 
-  async adminCreateLicense(body: { email: string; name?: string; tier: string; expires_at?: string }): Promise<any> {
+  async adminCreateLicense(body: {
+    email: string;
+    name?: string;
+    tier: string;
+    expires_at?: string;
+  }): Promise<any> {
     return this.adminRequest('POST', '/admin/license/create', body);
   }
 
@@ -123,7 +144,11 @@ export class LicenseService implements OnModuleInit {
     return this.adminRequest('PATCH', '/admin/license/revoke', { key });
   }
 
-  private async adminRequest(method: string, path: string, body?: unknown): Promise<any> {
+  private async adminRequest(
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<any> {
     const workerUrl = this.config.get<string>('WORKER_URL');
     const secret = this.config.get<string>('NEXUS_ADMIN_SECRET');
 

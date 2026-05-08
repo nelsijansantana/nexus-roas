@@ -19,7 +19,7 @@ import { LicenseModule } from './license/license.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    RedisModule,   // @Global — provides RedisService (used by AnalyticsService)
+    RedisModule, // @Global — provides RedisService (used by AnalyticsService)
     PrismaModule,
     AuthModule,
     UsersModule,

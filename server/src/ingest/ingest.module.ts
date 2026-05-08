@@ -6,8 +6,8 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { ClickHouseModule } from '../clickhouse/clickhouse.module';
 
 @Module({
-  imports:     [PrismaModule, ClickHouseModule],
+  imports: [PrismaModule, ClickHouseModule],
   controllers: [IngestController, TrackingController],
-  providers:   [IngestService],
+  providers: [IngestService],
 })
 export class IngestModule {}

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
@@ -19,20 +23,30 @@ export class PixelEventsService {
   // ─── Private helpers ─────────────────────────────────────────────────────
 
   /** Verify the caller owns (or has access to) the project */
-  private async _assertAccess(projectId: string, caller: JwtPayload): Promise<void> {
+  private async _assertAccess(
+    projectId: string,
+    caller: JwtPayload,
+  ): Promise<void> {
     const ownerId = caller.ownerId ?? caller.userId;
     const project = await this.prisma.projects.findFirst({
       where: { id: projectId, userId: ownerId, deletedAt: null },
     });
-    if (!project) throw new ForbiddenException('Project not found or access denied');
+    if (!project)
+      throw new ForbiddenException('Project not found or access denied');
   }
 
   // ─── CRUD (authenticated) ─────────────────────────────────────────────────
 
   // ── Prisma accessor — cast needed until next `prisma generate` after migration ──
-  private get db() { return (this.prisma as any).pixel_events; }
+  private get db() {
+    return (this.prisma as any).pixel_events;
+  }
 
-  async create(projectId: string, dto: CreatePixelEventDto, caller: JwtPayload) {
+  async create(
+    projectId: string,
+    dto: CreatePixelEventDto,
+    caller: JwtPayload,
+  ) {
     await this._assertAccess(projectId, caller);
 
     const rule = await this.db.create({
@@ -62,7 +76,12 @@ export class PixelEventsService {
     });
   }
 
-  async update(projectId: string, id: string, dto: UpdatePixelEventDto, caller: JwtPayload) {
+  async update(
+    projectId: string,
+    id: string,
+    dto: UpdatePixelEventDto,
+    caller: JwtPayload,
+  ) {
     await this._assertAccess(projectId, caller);
 
     const existing = await this.db.findFirst({ where: { id, projectId } });
@@ -71,14 +90,14 @@ export class PixelEventsService {
     const updated = await this.db.update({
       where: { id },
       data: {
-        ...(dto.eventName !== undefined   && { eventName:   dto.eventName }),
+        ...(dto.eventName !== undefined && { eventName: dto.eventName }),
         ...(dto.triggerType !== undefined && { triggerType: dto.triggerType }),
-        ...(dto.selector !== undefined    && { selector:    dto.selector }),
-        ...(dto.buttonText !== undefined  && { buttonText:  dto.buttonText }),
+        ...(dto.selector !== undefined && { selector: dto.selector }),
+        ...(dto.buttonText !== undefined && { buttonText: dto.buttonText }),
         ...(dto.scrollDepth !== undefined && { scrollDepth: dto.scrollDepth }),
         ...(dto.timeSeconds !== undefined && { timeSeconds: dto.timeSeconds }),
-        ...(dto.customData !== undefined  && { customData:  dto.customData }),
-        ...(dto.isActive !== undefined    && { isActive:    dto.isActive }),
+        ...(dto.customData !== undefined && { customData: dto.customData }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
     });
     await this.projects.resyncKV(projectId);
@@ -98,7 +117,9 @@ export class PixelEventsService {
 
   // ─── Internal — used by TrackerService (no auth) ──────────────────────────
 
-  async findActiveRulesForProject(projectId: string): Promise<PixelEventRule[]> {
+  async findActiveRulesForProject(
+    projectId: string,
+  ): Promise<PixelEventRule[]> {
     const rows = await this.db.findMany({
       where: { projectId, isActive: true },
       orderBy: { createdAt: 'asc' },
@@ -114,7 +135,7 @@ export class PixelEventsService {
       },
     });
 
-    return rows.map(r => ({
+    return rows.map((r) => ({
       id: r.id,
       eventName: r.eventName,
       triggerType: r.triggerType as PixelEventRule['triggerType'],

@@ -1,8 +1,12 @@
 import {
-  Controller, Get, Post, Put, Body, Headers,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Body,
+  Headers,
   UnauthorizedException,
 } from '@nestjs/common';
-import { RawBodyRequest } from '@nestjs/common';
 import { Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { BillingService } from './billing.service';
@@ -32,7 +36,12 @@ export class BillingController {
     @Body() dto: CreateCheckoutDto,
   ) {
     const { userId, email } = this.extractUser(authHeader);
-    return this.billingService.createCheckout(userId, email, dto.planId, dto.interval);
+    return this.billingService.createCheckout(
+      userId,
+      email,
+      dto.planId,
+      dto.interval,
+    );
   }
 
   // ─── Admin endpoints ──────────────────────────────────────────────────────
@@ -80,13 +89,19 @@ export class BillingController {
     if (!authHeader?.startsWith('Bearer ')) {
       throw new UnauthorizedException('Token não fornecido');
     }
-    const payload = this.authService.verifyToken(authHeader.replace('Bearer ', ''));
+    const payload = this.authService.verifyToken(
+      authHeader.replace('Bearer ', ''),
+    );
     return { userId: payload.userId, email: payload.email };
   }
 
   private requireAdmin(authHeader: string) {
-    if (!authHeader?.startsWith('Bearer ')) throw new UnauthorizedException('Token não fornecido');
-    const payload = this.authService.verifyToken(authHeader.replace('Bearer ', ''));
-    if (payload.role !== 'SUPER_ADMIN') throw new UnauthorizedException('Acesso negado');
+    if (!authHeader?.startsWith('Bearer '))
+      throw new UnauthorizedException('Token não fornecido');
+    const payload = this.authService.verifyToken(
+      authHeader.replace('Bearer ', ''),
+    );
+    if (payload.role !== 'SUPER_ADMIN')
+      throw new UnauthorizedException('Acesso negado');
   }
 }

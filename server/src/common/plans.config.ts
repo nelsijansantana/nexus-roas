@@ -16,14 +16,14 @@
 export interface PlanConfig {
   id: string;
   name: string;
-  priceMonthly: number;  // BRL
-  priceAnnual: number;   // BRL/month when billed annually (20% off)
-  projects: number;      // -1 = unlimited
+  priceMonthly: number; // BRL
+  priceAnnual: number; // BRL/month when billed annually (20% off)
+  projects: number; // -1 = unlimited
   salesPerMonth: number; // -1 = unlimited
   dataRetentionDays: number;
-  seats: number;         // max team members (-1 = unlimited)
+  seats: number; // max team members (-1 = unlimited)
   overagePricePer: number; // BRL per sale over the limit (0 = blocked/no overage)
-  features: string[];    // marketing bullet points
+  features: string[]; // marketing bullet points
 }
 
 export const PLANS: Record<string, PlanConfig> = {
@@ -77,7 +77,7 @@ export const PLANS: Record<string, PlanConfig> = {
     salesPerMonth: 2000,
     dataRetentionDays: 90,
     seats: 1,
-    overagePricePer: 0.10,
+    overagePricePer: 0.1,
     features: [
       '3 projetos',
       'Até 2.000 vendas aprovadas/mês',
@@ -135,7 +135,7 @@ export const PLANS: Record<string, PlanConfig> = {
   },
 };
 
-export const PLAN_IDS = Object.keys(PLANS) as Array<keyof typeof PLANS>;
+export const PLAN_IDS = Object.keys(PLANS);
 
 export function getPlan(planId: string): PlanConfig {
   return PLANS[planId] ?? PLANS.free;
@@ -146,7 +146,10 @@ export function getPlan(planId: string): PlanConfig {
  * @param plan user's current plan id
  * @param currentProjectCount number of active (non-deleted) projects
  */
-export function canCreateProject(plan: string, currentProjectCount: number): boolean {
+export function canCreateProject(
+  plan: string,
+  currentProjectCount: number,
+): boolean {
   const config = getPlan(plan);
   if (config.projects === -1) return true;
   return currentProjectCount < config.projects;

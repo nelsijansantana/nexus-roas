@@ -37,12 +37,16 @@ export class TeamsService {
 
   async createMember(ownerId: string, dto: CreateMemberDto) {
     // Check seat limit for this owner's plan
-    const owner = await (this.prisma.users as any).findUnique({ where: { id: ownerId } });
+    const owner = await (this.prisma.users as any).findUnique({
+      where: { id: ownerId },
+    });
     if (!owner) throw new NotFoundException('Conta não encontrada');
 
     const plan = getPlan(owner.plan ?? 'free');
     if (plan.seats !== -1) {
-      const currentCount = await (this.prisma.team_memberships as any).count({ where: { ownerId } });
+      const currentCount = await (this.prisma.team_memberships as any).count({
+        where: { ownerId },
+      });
       if (currentCount >= plan.seats) {
         throw new ForbiddenException(
           `Seu plano ${plan.name} permite no máximo ${plan.seats} membro(s) no time. Faça upgrade para adicionar mais.`,
@@ -57,7 +61,9 @@ export class TeamsService {
 
     if (existing) {
       // Check if already member of this account
-      const alreadyMember = await (this.prisma.team_memberships as any).findUnique({
+      const alreadyMember = await (
+        this.prisma.team_memberships as any
+      ).findUnique({
         where: { ownerId_userId: { ownerId, userId: existing.id } },
       });
       if (alreadyMember) {
@@ -124,7 +130,11 @@ export class TeamsService {
 
   // ─── Update member role ───────────────────────────────────────────────────
 
-  async updateMember(ownerId: string, membershipId: string, dto: UpdateMemberDto) {
+  async updateMember(
+    ownerId: string,
+    membershipId: string,
+    dto: UpdateMemberDto,
+  ) {
     const membership = await (this.prisma.team_memberships as any).findFirst({
       where: { id: membershipId, ownerId },
       include: { member: true },
@@ -164,7 +174,9 @@ export class TeamsService {
     });
     if (!membership) throw new NotFoundException('Membro não encontrado');
 
-    await (this.prisma.team_memberships as any).delete({ where: { id: membershipId } });
+    await (this.prisma.team_memberships as any).delete({
+      where: { id: membershipId },
+    });
     return { success: true };
   }
 
@@ -196,7 +208,11 @@ export class TeamsService {
     }));
   }
 
-  async grantProjectAccess(ownerId: string, membershipId: string, projectId: string) {
+  async grantProjectAccess(
+    ownerId: string,
+    membershipId: string,
+    projectId: string,
+  ) {
     const membership = await (this.prisma.team_memberships as any).findFirst({
       where: { id: membershipId, ownerId },
     });
@@ -219,7 +235,11 @@ export class TeamsService {
     return { success: true };
   }
 
-  async revokeProjectAccess(ownerId: string, membershipId: string, projectId: string) {
+  async revokeProjectAccess(
+    ownerId: string,
+    membershipId: string,
+    projectId: string,
+  ) {
     const membership = await (this.prisma.team_memberships as any).findFirst({
       where: { id: membershipId, ownerId },
     });
@@ -233,7 +253,7 @@ export class TeamsService {
 
   // ─── Used by AuthService: resolve membership for a user ──────────────────
 
-  async getMembershipForUser(userId: string) {
+  getMembershipForUser(userId: string) {
     return (this.prisma.team_memberships as any).findFirst({
       where: { userId },
       select: { id: true, ownerId: true, role: true },
@@ -242,7 +262,10 @@ export class TeamsService {
 
   // ─── Used by ProjectsService: get allowed project IDs for a member ────────
 
-  async getAllowedProjectIds(membershipId: string, memberRole: string): Promise<string[] | null> {
+  async getAllowedProjectIds(
+    membershipId: string,
+    memberRole: string,
+  ): Promise<string[] | null> {
     // 'admin' gets all projects — return null to indicate "no restriction"
     if (memberRole === 'admin') return null;
 

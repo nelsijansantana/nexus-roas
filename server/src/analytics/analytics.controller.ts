@@ -1,4 +1,10 @@
-import { Controller, Get, Query, Headers, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Headers,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { AuthService, JwtPayload } from '../auth/auth.service';
 
@@ -18,7 +24,12 @@ export class AnalyticsController {
     @Query('timezone') timezone?: string,
   ) {
     const caller = this.extractUser(authHeader);
-    return this.analyticsService.getDashboardMetrics(caller, { projectId, startDate, endDate, timezone });
+    return this.analyticsService.getDashboardMetrics(caller, {
+      projectId,
+      startDate,
+      endDate,
+      timezone,
+    });
   }
 
   @Get('revenue-over-time')
@@ -30,7 +41,12 @@ export class AnalyticsController {
     @Query('timezone') timezone?: string,
   ) {
     const caller = this.extractUser(authHeader);
-    return this.analyticsService.getRevenueOverTime(caller, { projectId, startDate, endDate, timezone });
+    return this.analyticsService.getRevenueOverTime(caller, {
+      projectId,
+      startDate,
+      endDate,
+      timezone,
+    });
   }
 
   private extractUser(authHeader: string): JwtPayload {

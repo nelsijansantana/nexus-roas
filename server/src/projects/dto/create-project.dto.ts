@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID, IsBoolean } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsBoolean,
+} from 'class-validator';
 
 export class CreateProjectDto {
   @IsUUID(4, { message: 'Must be a valid user UUID' })

@@ -1,9 +1,19 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Body, Param, Headers, UnauthorizedException,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AccountWebhooksService } from './account-webhooks.service';
-import { CreateAccountWebhookDto, UpdateAccountWebhookDto } from './dto/account-webhook.dto';
+import {
+  CreateAccountWebhookDto,
+  UpdateAccountWebhookDto,
+} from './dto/account-webhook.dto';
 import { AuthService } from '../auth/auth.service';
 
 @Controller('api/v1/account-webhooks')

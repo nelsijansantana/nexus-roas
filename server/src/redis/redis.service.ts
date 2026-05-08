@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
@@ -19,7 +24,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
-    const url = this.config.get<string>('REDIS_URL') || 'redis://localhost:6379';
+    const url =
+      this.config.get<string>('REDIS_URL') || 'redis://localhost:6379';
     try {
       this.client = new Redis(url, {
         lazyConnect: true,
@@ -28,7 +34,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         enableOfflineQueue: false,
         retryStrategy: (times) => {
           // Retry with capped backoff; log only on first failure to avoid spam
-          if (times === 1) this.logger.warn('Redis connection lost — falling back to in-memory');
+          if (times === 1)
+            this.logger.warn(
+              'Redis connection lost — falling back to in-memory',
+            );
           return Math.min(times * 500, 10_000);
         },
       });
@@ -64,7 +73,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async get(key: string): Promise<string | null> {
     try {
-      return await this.client?.get(key) ?? null;
+      return (await this.client?.get(key)) ?? null;
     } catch {
       return null;
     }
@@ -77,11 +86,17 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       } else {
         await this.client?.set(key, value);
       }
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   }
 
   /** SET key value NX EX ttl — returns true if the key was set (acquired lock). */
-  async setNX(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+  async setNX(
+    key: string,
+    value: string,
+    ttlSeconds: number,
+  ): Promise<boolean> {
     try {
       const result = await this.client?.set(key, value, 'EX', ttlSeconds, 'NX');
       return result === 'OK';
@@ -93,7 +108,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async del(key: string): Promise<void> {
     try {
       await this.client?.del(key);
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   }
 
   async exists(key: string): Promise<boolean> {
@@ -117,7 +134,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async setJSON(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
+  async setJSON(
+    key: string,
+    value: unknown,
+    ttlSeconds?: number,
+  ): Promise<void> {
     await this.set(key, JSON.stringify(value), ttlSeconds);
   }
 }

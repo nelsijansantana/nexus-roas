@@ -1,11 +1,7 @@
-import {
-  Injectable,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import Stripe = require('stripe');
+import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 import { BillingConfig } from './dto/billing.dto';
 import { PLANS } from '../common/plans.config';
@@ -26,7 +22,11 @@ export class BillingService {
       where: { key: CONFIG_KEY },
     });
     if (!row) return { active: 'none', trialDays: 14 };
-    try { return JSON.parse(row.value) as BillingConfig; } catch { return { active: 'none', trialDays: 14 }; }
+    try {
+      return JSON.parse(row.value) as BillingConfig;
+    } catch {
+      return { active: 'none', trialDays: 14 };
+    }
   }
 
   /** Returns sanitized config (no secret keys) for public/user consumption */
@@ -46,7 +46,11 @@ export class BillingService {
     const merged = deepMerge(current, data) as BillingConfig;
     await (this.prisma.billing_config as any).upsert({
       where: { key: CONFIG_KEY },
-      create: { id: randomUUID(), key: CONFIG_KEY, value: JSON.stringify(merged) },
+      create: {
+        id: randomUUID(),
+        key: CONFIG_KEY,
+        value: JSON.stringify(merged),
+      },
       update: { value: JSON.stringify(merged) },
     });
     return merged;
@@ -59,15 +63,27 @@ export class BillingService {
     userEmail: string,
     planId: string,
     interval: 'monthly' | 'annual',
-  ): Promise<{ type: string; url?: string; clientSecret?: string; publishableKey?: string }> {
+  ): Promise<{
+    type: string;
+    url?: string;
+    clientSecret?: string;
+    publishableKey?: string;
+  }> {
     if (!PLANS[planId]) throw new BadRequestException('Plano inválido');
-    if (planId === 'free') throw new BadRequestException('Plano free não requer checkout');
+    if (planId === 'free')
+      throw new BadRequestException('Plano free não requer checkout');
 
     const cfg = await this.getConfig();
 
     switch (cfg.active) {
       case 'stripe':
-        return this.createStripeCheckout(userId, userEmail, planId, interval, cfg);
+        return this.createStripeCheckout(
+          userId,
+          userEmail,
+          planId,
+          interval,
+          cfg,
+        );
       case 'hotmart':
         return this.getHotmartUrl(userEmail, planId, interval, cfg);
       case 'external':
@@ -75,7 +91,9 @@ export class BillingService {
       case 'own':
         return this.createOwnCheckout(userId, userEmail, planId, interval, cfg);
       default:
-        throw new BadRequestException('Nenhuma plataforma de pagamento configurada. Contate o suporte.');
+        throw new BadRequestException(
+          'Nenhuma plataforma de pagamento configurada. Contate o suporte.',
+        );
     }
   }
 
@@ -88,19 +106,26 @@ export class BillingService {
     interval: 'monthly' | 'annual',
     cfg: BillingConfig,
   ) {
-    if (!cfg.stripe?.secretKey) throw new BadRequestException('Stripe não configurado');
+    if (!cfg.stripe?.secretKey)
+      throw new BadRequestException('Stripe não configurado');
 
-    const priceId = interval === 'annual'
-      ? cfg.stripe.plans?.[planId]?.annual
-      : cfg.stripe.plans?.[planId]?.monthly;
+    const priceId =
+      interval === 'annual'
+        ? cfg.stripe.plans?.[planId]?.annual
+        : cfg.stripe.plans?.[planId]?.monthly;
 
-    if (!priceId) throw new BadRequestException(`Price ID para plano "${planId}" (${interval}) não configurado`);
+    if (!priceId)
+      throw new BadRequestException(
+        `Price ID para plano "${planId}" (${interval}) não configurado`,
+      );
 
     const stripe = new Stripe(cfg.stripe.secretKey);
     const appUrl = this.config.get<string>('APP_URL', 'http://localhost:5173');
 
     // Reuse or create Stripe customer
-    const user = await (this.prisma.users as any).findUnique({ where: { id: userId } });
+    const user = await (this.prisma.users as any).findUnique({
+      where: { id: userId },
+    });
     let customerId: string | undefined = user?.stripeCustomerId ?? undefined;
 
     if (!customerId) {
@@ -166,21 +191,26 @@ export class BillingService {
     let event: any;
 
     try {
-      event = stripe.webhooks.constructEvent(rawBody, signature, cfg.stripe.webhookSecret);
+      event = stripe.webhooks.constructEvent(
+        rawBody,
+        signature,
+        cfg.stripe.webhookSecret,
+      );
     } catch {
       throw new BadRequestException('Stripe webhook signature inválida');
     }
 
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object as any;
-        const userId = (session.metadata?.userId ?? session.client_reference_id) as string;
+        const session = event.data.object;
+        const userId = (session.metadata?.userId ??
+          session.client_reference_id) as string;
         const planId = (session.metadata?.planId ?? 'starter') as string;
         if (userId) await this.activatePlan(userId, planId);
         break;
       }
       case 'customer.subscription.updated': {
-        const sub = event.data.object as any;
+        const sub = event.data.object;
         const userId = sub.metadata?.userId as string;
         const planId = sub.metadata?.planId as string;
         if (userId && planId) {
@@ -193,7 +223,7 @@ export class BillingService {
         break;
       }
       case 'customer.subscription.deleted': {
-        const sub = event.data.object as any;
+        const sub = event.data.object;
         const userId = sub.metadata?.userId as string;
         if (userId) await this.activatePlan(userId, 'free');
         break;
@@ -209,11 +239,15 @@ export class BillingService {
     interval: 'monthly' | 'annual',
     cfg: BillingConfig,
   ) {
-    const url = interval === 'annual'
-      ? cfg.hotmart?.plans?.[planId]?.annual
-      : cfg.hotmart?.plans?.[planId]?.monthly;
+    const url =
+      interval === 'annual'
+        ? cfg.hotmart?.plans?.[planId]?.annual
+        : cfg.hotmart?.plans?.[planId]?.monthly;
 
-    if (!url) throw new BadRequestException(`URL Hotmart para plano "${planId}" não configurado`);
+    if (!url)
+      throw new BadRequestException(
+        `URL Hotmart para plano "${planId}" não configurado`,
+      );
 
     // Pre-fill buyer email in Hotmart checkout
     const finalUrl = `${url}${url.includes('?') ? '&' : '?'}checkoutinfo[email]=${encodeURIComponent(userEmail)}`;
@@ -223,7 +257,8 @@ export class BillingService {
   async handleHotmartWebhook(body: any, hottok: string): Promise<void> {
     const cfg = await this.getConfig();
     if (!cfg.hotmart?.hottokSecret) return;
-    if (hottok !== cfg.hotmart.hottokSecret) throw new BadRequestException('HOTTOK inválido');
+    if (hottok !== cfg.hotmart.hottokSecret)
+      throw new BadRequestException('HOTTOK inválido');
 
     // Hotmart sends event in body.event (PURCHASE_APPROVED, PURCHASE_CANCELED, etc.)
     const event = body?.event;
@@ -233,7 +268,7 @@ export class BillingService {
 
     if (event === 'PURCHASE_APPROVED' || event === 'PURCHASE_COMPLETE') {
       // Try to determine plan from product/offer name or price
-      const planId = this.inferHotmartPlan(body, cfg);
+      const planId = this.inferHotmartPlan(body);
       const user = await (this.prisma.users as any).findUnique({
         where: { email: buyerEmail.toLowerCase() },
       });
@@ -246,10 +281,12 @@ export class BillingService {
     }
   }
 
-  private inferHotmartPlan(body: any, cfg: BillingConfig): string {
+  private inferHotmartPlan(body: any): string {
     // Try to match by product name in the webhook payload
-    const productName = (body?.data?.product?.name as string ?? '').toLowerCase();
-    const planIds = Object.keys(PLANS).filter(p => p !== 'free');
+    const productName = (
+      (body?.data?.product?.name as string) ?? ''
+    ).toLowerCase();
+    const planIds = Object.keys(PLANS).filter((p) => p !== 'free');
     for (const planId of planIds) {
       if (productName.includes(planId)) return planId;
     }
@@ -264,11 +301,15 @@ export class BillingService {
     interval: 'monthly' | 'annual',
     cfg: BillingConfig,
   ) {
-    const url = interval === 'annual'
-      ? cfg.external?.plans?.[planId]?.annual
-      : cfg.external?.plans?.[planId]?.monthly;
+    const url =
+      interval === 'annual'
+        ? cfg.external?.plans?.[planId]?.annual
+        : cfg.external?.plans?.[planId]?.monthly;
 
-    if (!url) throw new BadRequestException(`URL para plano "${planId}" não configurado`);
+    if (!url)
+      throw new BadRequestException(
+        `URL para plano "${planId}" não configurado`,
+      );
 
     const finalUrl = `${url}${url.includes('?') ? '&' : '?'}email=${encodeURIComponent(userEmail)}`;
     return { type: 'redirect', url: finalUrl };
@@ -286,7 +327,10 @@ export class BillingService {
     // Own checkout uses Stripe Payment Elements with own UX
     if (cfg.own?.gateway === 'stripe') {
       const stripeKey = cfg.stripe?.secretKey ?? cfg.own?.pagarmeApiKey;
-      if (!stripeKey) throw new BadRequestException('Gateway não configurado para checkout próprio');
+      if (!stripeKey)
+        throw new BadRequestException(
+          'Gateway não configurado para checkout próprio',
+        );
 
       // Use Stripe config for the payment processing
       return this.createStripeCheckout(userId, userEmail, planId, interval, {
@@ -294,7 +338,9 @@ export class BillingService {
         stripe: { ...cfg.stripe, mode: 'embedded' },
       });
     }
-    throw new BadRequestException('Gateway do checkout próprio não suportado ainda');
+    throw new BadRequestException(
+      'Gateway do checkout próprio não suportado ainda',
+    );
   }
 
   // ─── Shared helpers ───────────────────────────────────────────────────────

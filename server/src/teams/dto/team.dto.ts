@@ -1,7 +1,14 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, IsIn } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+  IsIn,
+} from 'class-validator';
 
 export const MEMBER_ROLES = ['admin', 'analyst', 'viewer'] as const;
-export type MemberRole = typeof MEMBER_ROLES[number];
+export type MemberRole = (typeof MEMBER_ROLES)[number];
 
 export class CreateMemberDto {
   @IsEmail({}, { message: 'E-mail inválido' })

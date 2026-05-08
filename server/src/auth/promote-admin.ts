@@ -39,7 +39,7 @@ async function main() {
     console.log(`User does not exist, creating as SUPER_ADMIN...`);
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    
+
     await (prisma.users as any).create({
       data: {
         id: randomUUID(),

@@ -4,6 +4,6 @@ import { RabbitService } from './rabbit.service';
 @Global()
 @Module({
   providers: [RabbitService],
-  exports:   [RabbitService],
+  exports: [RabbitService],
 })
 export class RabbitModule {}

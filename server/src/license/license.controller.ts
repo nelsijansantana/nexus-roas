@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Patch, Body, Headers, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Headers,
+  UnauthorizedException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { LicenseService } from './license.service';
 import { AuthService } from '../auth/auth.service';
 
@@ -28,7 +37,8 @@ export class LicenseController {
   @Post('admin/create')
   async adminCreate(
     @Headers('authorization') auth: string,
-    @Body() body: { email: string; name?: string; tier: string; expires_at?: string },
+    @Body()
+    body: { email: string; name?: string; tier: string; expires_at?: string },
   ) {
     this.requireSuperAdmin(auth);
     return this.licenseService.adminCreateLicense(body);
@@ -47,6 +57,7 @@ export class LicenseController {
     const token = auth?.replace('Bearer ', '');
     if (!token) throw new UnauthorizedException();
     const payload = this.authService.verifyToken(token);
-    if (payload.role !== 'SUPER_ADMIN') throw new ForbiddenException('Super admin only');
+    if (payload.role !== 'SUPER_ADMIN')
+      throw new ForbiddenException('Super admin only');
   }
 }
