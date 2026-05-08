@@ -15,6 +15,7 @@ import { handleCartPandaGateway } from './handlers/gateways/cartpanda';
 import { handleYampiGateway } from './handlers/gateways/yampi';
 import { handleGenericGateway } from './handlers/gateways/generic';
 import { handleLicenseValidate, handleLicensePing, handleAdminLicenseCreate, handleAdminLicenseList, handleAdminLicenseRevoke, handleWebhookTicto } from './routes/license';
+import { handleCapiQueue } from './queue/consumer';
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 // Reflect the exact origin — required when credentials (cookies) are involved.
@@ -178,28 +179,33 @@ export default {
     }
   },
 
-  // ── Queue consumer — processa D1 writes assíncronos em batch ────────────────
-  // Desacopla a gravação D1 da resposta da edge: o isolate responde ao usuário
-  // imediatamente e a queue garante a persistência sem bloquear a latência.
-  async queue(batch: MessageBatch<import('./types').PersistenceMessage>, env: Env): Promise<void> {
-    // Dedup por nx_user: colapsa múltiplos eventos do mesmo usuário em um único write
+  // ── Queue consumer — routes CAPI_QUEUE and PERSISTENCE_QUEUE batches ────────
+  async queue(batch: MessageBatch<Record<string, unknown>>, env: Env): Promise<void> {
+    // Route gateway_webhook messages to the CAPI processor
+    const firstType = batch.messages[0]?.body?.type
+    if (firstType === 'gateway_webhook') {
+      return handleCapiQueue(batch, env)
+    }
+
+    // ── PERSISTENCE_QUEUE: D1 writes assíncronos em batch ──────────────────────
     const userMap   = new Map<string, import('./types').PersistenceMessage>();
     const attrBatch: import('./types').PersistenceMessage[] = [];
 
     for (const msg of batch.messages) {
-      const { type, nx_user } = msg.body;
+      const pm = msg.body as unknown as import('./types').PersistenceMessage;
+      const { type, nx_user } = pm;
       if (type === 'user_store') {
         const existing = userMap.get(nx_user);
         // Mescla: preserva campos preenchidos do primeiro registro (first-touch)
-        if (existing?.user && msg.body.user) {
-          for (const [k, v] of Object.entries(msg.body.user)) {
+        if (existing?.user && pm.user) {
+          for (const [k, v] of Object.entries(pm.user)) {
             if (v && !existing.user[k]) existing.user[k] = v;
           }
         } else {
-          userMap.set(nx_user, msg.body);
+          userMap.set(nx_user, pm);
         }
       } else if (type === 'user_attribution') {
-        attrBatch.push(msg.body);
+        attrBatch.push(pm);
       }
       msg.ack();
     }
