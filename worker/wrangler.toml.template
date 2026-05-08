@@ -15,26 +15,41 @@ database_id   = "__D1_DATABASE_ID__"
 binding = "SITE_CONFIG_KV"
 id      = "__KV_NAMESPACE_ID__"
 
-# ── Static asset: pixel script ────────────────────────────────────────────────
+# ── Static assets: pixel scripts & compiled checkout bundles ─────────────────
 [[rules]]
 type      = "Text"
-globs     = ["**/*.txt"]
+globs     = ["pixel.js", "dist/*.js", "**/*.txt"]
 fallthrough = true
 
 # ── Environment Variables ─────────────────────────────────────────────────────
 [vars]
 SITE_CONFIG = "{}"
 
+# ── KV Deduplication (event + webhook) ───────────────────────────────────────
+[[kv_namespaces]]
+binding = "KV_DEDUP"
+id      = "__KV_DEDUP_ID__"
+
 # ── Queue — gravações D1 assíncronas ─────────────────────────────────────────
 [[queues.producers]]
 binding = "PERSISTENCE_QUEUE"
 queue   = "nexus-persistence"
+
+[[queues.producers]]
+binding = "CAPI_QUEUE"
+queue   = "nexus-capi"
 
 [[queues.consumers]]
 queue             = "nexus-persistence"
 max_batch_size    = 50
 max_batch_timeout = 5
 max_concurrency   = 1
+
+[[queues.consumers]]
+queue             = "nexus-capi"
+max_batch_size    = 10
+max_batch_timeout = 30
+max_concurrency   = 3
 
 # ── Scheduled Tasks ───────────────────────────────────────────────────────────
 [triggers]

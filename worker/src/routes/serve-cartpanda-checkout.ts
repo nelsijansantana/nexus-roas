@@ -1,7 +1,7 @@
 import { Env } from '../types';
 import { getConfig, detectSiteId } from '../shared/config';
-// @ts-ignore — text module imported via wrangler [[rules]] type = "Text"
-import CARTPANDA_JS from '../../cartpanda-checkout-template.txt';
+// Wrangler injects as plain string via [[rules]] type = "Text" globs = ["dist/*.js"]
+import CARTPANDA_JS from '../../dist/cartpanda-checkout.js';
 
 /**
  * GET /tracking/cartpanda-checkout.js?pid=<project-id>

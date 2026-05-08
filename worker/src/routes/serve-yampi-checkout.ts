@@ -1,7 +1,7 @@
 import { Env } from '../types';
 import { getConfig, detectSiteId } from '../shared/config';
-// @ts-ignore — text module imported via wrangler [[rules]] type = "Text"
-import YAMPI_JS from '../../yampi-checkout-template.txt';
+// Wrangler injects as plain string via [[rules]] type = "Text" globs = ["dist/*.js"]
+import YAMPI_JS from '../../dist/yampi-checkout.js';
 
 /**
  * GET /tracking/yampi-checkout.js?pid=<project-id>

@@ -1,9 +1,8 @@
 import { Env, SiteConfig } from '../types';
 import { getConfig, detectSiteId } from '../shared/config';
 import { parseCookies, generateId } from '../shared/helpers';
-// pixel-template.txt is copied from pixel.js by `npm run prebuild`.
-// Wrangler injects it as a plain string via [[rules]] type = "Text".
-import PIXEL_JS from '../../pixel-template.txt';
+// Wrangler injects pixel.js as a plain string via [[rules]] type = "Text".
+import PIXEL_JS from '../../pixel.js';
 
 // Returns the registrable domain for cookie scope, or empty string when the
 // host is on a public-suffix-like TLD (*.workers.dev, *.pages.dev, etc.) where

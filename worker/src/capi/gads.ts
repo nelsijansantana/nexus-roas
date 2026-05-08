@@ -1,8 +1,7 @@
 import { ParsedGatewayEvent } from '../lib/gateways/types'
 import { sha256 } from './utils'
 
-const GADS_CONVERSION_URL = 'https://googleads.googleapis.com/v17/customers/{CUSTOMER_ID}:uploadClickConversions'
-const GADS_GTAG_URL       = 'https://www.google.com/pagead/conversion/app/version/1'
+const GADS_GTAG_URL = 'https://www.google.com/pagead/conversion/app/version/1'
 
 export interface GAdsProject {
   /** AW-XXXXXXXXXX — Google Ads conversion ID */
@@ -76,5 +75,3 @@ export async function dispatchGoogleAds(
   }
 }
 
-// Export URL constants for the OAuth-based Google Ads API path (story 8.x+)
-export { GADS_CONVERSION_URL }
