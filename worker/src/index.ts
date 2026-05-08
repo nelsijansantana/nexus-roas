@@ -8,6 +8,7 @@ import { handleCartPandaCheckoutPixel } from './routes/serve-cartpanda-checkout'
 import { handleYampiCheckoutPixel } from './routes/serve-yampi-checkout';
 import { handleDebug } from './routes/debug';
 import { handleLogs } from './routes/logs';
+import { handleServeScript } from './handlers/scripts';
 import { handleLicenseValidate, handleLicensePing, handleAdminLicenseCreate, handleAdminLicenseList, handleAdminLicenseRevoke, handleWebhookTicto } from './routes/license';
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
@@ -83,6 +84,11 @@ export default {
       }
       if (path === '/g/collect') {
         return await handleGA4CollectProxy(request, env);
+      }
+
+      // ── Compiled pixel scripts with runtime config injection ─────────────────
+      if (path.startsWith('/scripts/') && method === 'GET') {
+        return await handleServeScript(request, env);
       }
 
       // ── Real-time beacon ─────────────────────────────────────────────────────

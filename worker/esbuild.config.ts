@@ -1,4 +1,5 @@
 import * as esbuild from 'esbuild'
+import { writeFileSync } from 'fs'
 
 type ScriptName =
   | 'shopify-storefront'
@@ -76,6 +77,8 @@ if (isWatch) {
   await Promise.all(
     (Object.entries(targets) as [string, ScriptConfig][]).map(async ([name, cfg]) => {
       await esbuild.build(buildOptions(name, cfg))
+      // Generate a .d.ts stub so TypeScript knows this is a text-string import
+      writeFileSync(`dist/${name}.d.ts`, 'declare const content: string;\nexport default content;\n')
       console.log(`[build] dist/${name}.js ✓`)
     })
   )
