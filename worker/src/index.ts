@@ -9,6 +9,7 @@ import { handleYampiCheckoutPixel } from './routes/serve-yampi-checkout';
 import { handleDebug } from './routes/debug';
 import { handleLogs } from './routes/logs';
 import { handleServeScript } from './handlers/scripts';
+import { handleEvent } from './handlers/event';
 import { handleLicenseValidate, handleLicensePing, handleAdminLicenseCreate, handleAdminLicenseList, handleAdminLicenseRevoke, handleWebhookTicto } from './routes/license';
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
@@ -100,7 +101,10 @@ export default {
             headers: { 'Content-Type': 'application/json', ...getCorsHeaders(origin) },
           });
         }
-        const response = await handleCollectEvent(request, env, ctx);
+        // /event uses new handler (pixel_id-based, with KV dedup + CAPI queue)
+        // /collect/event keeps the legacy handler for backwards compatibility
+        const handler = path === '/event' ? handleEvent : handleCollectEvent;
+        const response = await handler(request, env, ctx);
         const cors = getCorsHeaders(origin);
         Object.entries(cors).forEach(([k, v]) => response.headers.set(k, v));
         return response;

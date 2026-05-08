@@ -17,6 +17,11 @@ export interface Env {
    *        `webhook:<wid>`            → WebhookEndpointConfig JSON
    */
   SITE_CONFIG_KV: KVNamespace;
+  /** KV namespace for server-side event deduplication.
+   *  Keys: `dedup:{pixel_id}:{event_id}` → TTL 24h */
+  KV_DEDUP: KVNamespace;
+  /** Cloudflare Queue for async CAPI dispatch (consumed by story 8.5 processor). */
+  CAPI_QUEUE?: Queue<Record<string, unknown>>;
   /** Fallback for single-tenant / local dev (wrangler.toml [vars]) */
   SITE_CONFIG?: string;
   META_ACCESS_TOKEN?: string;
