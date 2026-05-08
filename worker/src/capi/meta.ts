@@ -1,4 +1,5 @@
 import { ParsedGatewayEvent, ParsedCustomer } from '../lib/gateways/types'
+import { sha256 } from './utils'
 
 const META_API_VERSION = 'v21.0'
 
@@ -27,17 +28,6 @@ export interface MetaProject {
 export interface MetaCapiResult {
   success:  boolean
   error?:   string
-}
-
-// AC2: SHA-256 hash for PII — lowercase + trim before encoding
-async function sha256(value: string): Promise<string> {
-  if (!value) return ''
-  const normalized = value.toLowerCase().trim()
-  const data       = new TextEncoder().encode(normalized)
-  const hash       = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(hash))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
 }
 
 async function buildUserData(
