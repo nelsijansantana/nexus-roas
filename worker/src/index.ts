@@ -10,6 +10,10 @@ import { handleDebug } from './routes/debug';
 import { handleLogs } from './routes/logs';
 import { handleServeScript } from './handlers/scripts';
 import { handleEvent } from './handlers/event';
+import { handleShopifyGateway } from './handlers/gateways/shopify';
+import { handleCartPandaGateway } from './handlers/gateways/cartpanda';
+import { handleYampiGateway } from './handlers/gateways/yampi';
+import { handleGenericGateway } from './handlers/gateways/generic';
 import { handleLicenseValidate, handleLicensePing, handleAdminLicenseCreate, handleAdminLicenseList, handleAdminLicenseRevoke, handleWebhookTicto } from './routes/license';
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
@@ -110,7 +114,18 @@ export default {
         return response;
       }
 
-      // ── Gateway webhooks ─────────────────────────────────────────────────────
+      // ── New-style gateway webhooks (/gateways/:gateway[/:pixel_id]) ─────────
+      if (path.startsWith('/gateways/') && method === 'POST') {
+        const segments = path.split('/').filter(Boolean); // ['gateways', gateway, ?pixel_id]
+        const gateway  = segments[1];
+        const pxId     = segments[2]; // optional path pixel_id
+        if (gateway === 'shopify')   return await handleShopifyGateway(request, env, ctx, pxId);
+        if (gateway === 'cartpanda') return await handleCartPandaGateway(request, env, ctx, pxId);
+        if (gateway === 'yampi')     return await handleYampiGateway(request, env, ctx, pxId);
+        if (gateway)                 return await handleGenericGateway(request, env, ctx, gateway, pxId);
+      }
+
+      // ── Legacy gateway webhooks ─────────────────────────────────────────────
       if (path.startsWith('/collect/webhook/') && method === 'POST') {
         const gateway = path.split('/collect/webhook/')[1];
         if (gateway) return await handleWebhook(request, env, ctx, gateway);
