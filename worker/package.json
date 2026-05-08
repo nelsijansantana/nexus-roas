@@ -5,8 +5,14 @@
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
-    "build:pixel": "node build-pixel.mjs",
-    "prebuild": "npm run build:pixel && node -e \"require('fs').copyFileSync('pixel.js', 'pixel-template.txt')\"",
+    "build:pixel": "tsx esbuild.config.ts",
+    "build:watch": "tsx esbuild.config.ts --watch",
+    "build:shopify-storefront": "tsx esbuild.config.ts --only=shopify-storefront",
+    "build:shopify-checkout": "tsx esbuild.config.ts --only=shopify-checkout",
+    "build:cartpanda-checkout": "tsx esbuild.config.ts --only=cartpanda-checkout",
+    "build:yampi-checkout": "tsx esbuild.config.ts --only=yampi-checkout",
+    "build:direct-traffic": "tsx esbuild.config.ts --only=direct-traffic",
+    "prebuild": "npm run build:pixel",
     "dev": "npm run prebuild && wrangler dev",
     "deploy": "npm run prebuild && wrangler deploy",
     "type-check": "tsc --noEmit",
@@ -17,6 +23,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240405.0",
     "esbuild": "^0.28.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.4.5",
     "wrangler": "^4.83.0"
   }
