@@ -22,9 +22,9 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240405.0",
-    "esbuild": "^0.28.0",
-    "tsx": "^4.21.0",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.23.1",
     "typescript": "^5.4.5",
-    "wrangler": "^4.83.0"
+    "wrangler": "^4.115.0"
   }
 }
